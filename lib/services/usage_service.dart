@@ -1,7 +1,36 @@
 import 'package:usage_stats/usage_stats.dart';
+import 'package:device_apps/device_apps.dart';
 
 class UsageService {
-  // Agora ele APENAS checa a permissão, sem forçar a tela de configurações!
+  // 1. FILTRO: Ignora processos do motor do Android, Launchers e o app Scroff
+  static bool _deveIgnorar(String? packageName) {
+    if (packageName == null) {
+      return true;
+    }
+
+    final p = packageName.toLowerCase();
+
+    if (p == 'android' ||
+        p == 'com.android.systemui' ||
+        p == 'com.android.settings') {
+      return true;
+    }
+    if (p.contains('launcher') ||
+        p.contains('miui.home') ||
+        p.contains('sec.android.app')) {
+      return true;
+    }
+    if (p.startsWith('com.android.providers')) {
+      return true;
+    }
+    if (p.contains('scroff')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Checa permissão silenciosamente
   static Future<bool> temPermissao() async {
     try {
       bool? isGranted = await UsageStats.checkUsagePermission();
@@ -21,9 +50,10 @@ class UsageService {
       int totalMillis = 0;
 
       for (final app in dados) {
+        if (_deveIgnorar(app.packageName)) continue;
         totalMillis += int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
       }
-      return totalMillis ~/ 60000; // Converte Milissegundos para Minutos
+      return totalMillis ~/ 60000;
     } catch (e) {
       return 0;
     }
@@ -40,6 +70,7 @@ class UsageService {
 
       int totalMillis = 0;
       for (final app in dados) {
+        if (_deveIgnorar(app.packageName)) continue;
         totalMillis += int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
       }
       return totalMillis ~/ 60000;
@@ -48,7 +79,7 @@ class UsageService {
     }
   }
 
-  // Retorna os top 3 apps mais usados hoje
+  // Retorna os top 3 apps mais usados hoje com seus NOMES REAIS
   static Future<List<Map<String, dynamic>>> getTopApps() async {
     try {
       final agora = DateTime.now();
@@ -58,19 +89,45 @@ class UsageService {
       List<Map<String, dynamic>> listaApps = [];
 
       for (final app in dados) {
+        if (_deveIgnorar(app.packageName)) continue;
+
         int millis = int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
         int minutos = millis ~/ 60000;
 
         if (minutos > 0 && app.packageName != null) {
-          final nome = app.packageName!.split('.').last;
-          final nomeFormatado = nome.toUpperCase() + nome.substring(1);
-          listaApps.add({'nome': nomeFormatado, 'minutos': minutos});
+          String nomeReal = 'Desconhecido';
+
+          // ==========================================
+          // MÁGICA AQUI: Pede o nome verdadeiro do app
+          // ==========================================
+          try {
+            // Removidos os argumentos extras. O pacote já faz a busca padrão!
+            Application? appInfo = await DeviceApps.getApp(app.packageName!);
+
+            if (appInfo != null) {
+              nomeReal = appInfo.appName;
+            } else {
+              // Fallback de segurança com o bug das letras corrigido
+              final partes = app.packageName!.split('.');
+              final ultimoNome = partes.last;
+              if (ultimoNome.isNotEmpty) {
+                nomeReal =
+                    ultimoNome.substring(0, 1).toUpperCase() +
+                    ultimoNome.substring(1).toLowerCase();
+              }
+            }
+          } catch (e) {
+            // Se der erro na busca, mantém 'Desconhecido'
+          }
+          listaApps.add({'nome': nomeReal, 'minutos': minutos});
         }
       }
 
+      // Ordena do maior para o menor
       listaApps.sort(
         (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
       );
+
       return listaApps.take(3).toList();
     } catch (e) {
       return [];
