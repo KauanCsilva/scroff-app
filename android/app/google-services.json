@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "225494246694",
+    "project_id": "scroff-app",
+    "storage_bucket": "scroff-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:225494246694:android:5be53785463843f0a60de7",
+        "android_client_info": {
+          "package_name": "com.example.scroff"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsLMrRDg5EVFNDOvbtUP7ePVsLxy5wsFw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

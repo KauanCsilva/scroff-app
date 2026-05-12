@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'Screens/home_screen.dart';
 import 'Screens/permission_screen.dart';
+import 'Screens/login_screen.dart';
 import 'services/usage_service.dart';
+import 'services/auth_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const ScroffApp());
 }
 
@@ -19,7 +25,21 @@ class ScroffApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFF1D9E75),
         useMaterial3: true,
       ),
-      home: const AppRoot(),
+      // O StreamBuilder é o primeiro filtro: Login
+      home: StreamBuilder(
+        stream: AuthService().usuarioLogado,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.hasData) {
+            return const AppRoot(); // Se logado, vai pro segundo filtro (Permissão)
+          }
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }
@@ -47,7 +67,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Verifica permissão toda vez que o app volta ao primeiro plano
+  // Isso aqui é o que fazia funcionar bem: checar sempre que você volta pro app
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -57,13 +77,16 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   Future<void> _verificarPermissao() async {
     final temPermissao = await UsageService.temPermissao();
-    setState(() {
-      _permissaoConcedida = temPermissao;
-    });
+    if (mounted) {
+      setState(() {
+        _permissaoConcedida = temPermissao;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // IMPORTANTE: Removi o parâmetro onPermissionGranted daqui também
     if (_permissaoConcedida) {
       return const HomeScreen();
     } else {

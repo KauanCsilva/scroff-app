@@ -33,8 +33,18 @@ class UsageService {
   // Checa permissão silenciosamente
   static Future<bool> temPermissao() async {
     try {
-      bool? isGranted = await UsageStats.checkUsagePermission();
-      return isGranted ?? false;
+      // Em vez de perguntar se tem permissão, vamos tentar USAR a permissão.
+      // Se ele conseguir pegar o tempo de tela do último minuto, é porque está liberado!
+      DateTime agora = DateTime.now();
+      DateTime umMinutoAtras = agora.subtract(const Duration(minutes: 1));
+
+      List<UsageInfo> stats = await UsageStats.queryUsageStats(
+        umMinutoAtras,
+        agora,
+      );
+
+      // Se a lista não estiver vazia, o Android deixou ler -> Permissão OK!
+      return stats.isNotEmpty;
     } catch (e) {
       return false;
     }
