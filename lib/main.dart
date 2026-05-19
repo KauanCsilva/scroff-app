@@ -6,6 +6,7 @@ import 'Screens/permission_screen.dart';
 import 'Screens/login_screen.dart';
 import 'services/usage_service.dart';
 import 'services/auth_service.dart';
+import 'Screens/dashboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,9 +87,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // IMPORTANTE: Removi o parâmetro onPermissionGranted daqui também
     if (_permissaoConcedida) {
-      return const HomeScreen();
+      // ANTES: return const HomeScreen();
+      // AGORA: Abre o gerenciador de abas que por padrão inicia na HomeScreen
+      return const DashboardPage();
     } else {
       return const PermissionScreen();
     }

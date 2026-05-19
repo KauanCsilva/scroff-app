@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/usage_service.dart';
+import '../services/firestore_service.dart'; // Import do Firestore
+import '../services/auth_service.dart'; // Import do Authentication
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,6 +16,9 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _topApps = [];
   bool _carregando = true;
 
+  // Instanciando o serviço do Firestore
+  final FirestoreService _firestoreService = FirestoreService();
+
   @override
   void initState() {
     super.initState();
@@ -23,17 +28,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _carregarDados() async {
     final minutos = await UsageService.getMinutosHoje();
-    final minutosOntem =
-        await UsageService.getMinutosOntem(); //CHAMA O DADO DE ONTEM
+    final minutosOntem = await UsageService.getMinutosOntem();
     final apps = await UsageService.getTopApps();
 
     if (mounted) {
       setState(() {
         _minutosTotais = minutos;
-        _minutosOntem = minutosOntem; // SALVA NO ESTADO DA TELA
+        _minutosOntem = minutosOntem;
         _topApps = apps;
         _carregando = false;
       });
+
+      // Salva os minutos atuais na nuvem automaticamente
+      _firestoreService.salvarTempoDeTela(minutos);
     }
   }
 
@@ -59,25 +66,41 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Header com título à esquerda e botão de Logout à direita
             Container(
               width: double.infinity,
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Scroff',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1D9E75),
-                    ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Scroff',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1D9E75),
+                        ),
+                      ),
+                      Text(
+                        'Bom dia!',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF888780),
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    'Bom dia!',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF888780)),
+                  // Botão de Logout adicionado aqui
+                  IconButton(
+                    icon: const Icon(Icons.logout, color: Color(0xFF888780)),
+                    tooltip: 'Sair da conta',
+                    onPressed: () async {
+                      await AuthService().sair();
+                    },
                   ),
                 ],
               ),
@@ -117,20 +140,17 @@ class _HomeScreenState extends State<HomeScreen> {
       int diferenca = _minutosTotais - _minutosOntem;
 
       if (diferenca > 0) {
-        // Usou MAIS que ontem (Péssimo)
         textoComparacao = '▲ $diferenca min a mais que ontem';
-        corFundo = const Color(0xFFFFEBEE); // Vermelho claro
-        corTexto = const Color(0xFFC62828); // Vermelho escuro
+        corFundo = const Color(0xFFFFEBEE);
+        corTexto = const Color(0xFFC62828);
       } else if (diferenca < 0) {
-        // Usou MENOS que ontem
         textoComparacao = '▼ ${diferenca.abs()} min a menos que ontem';
-        corFundo = const Color(0xFFE1F5EE); // Verde claro original
-        corTexto = const Color(0xFF085041); // Verde escuro original
+        corFundo = const Color(0xFFE1F5EE);
+        corTexto = const Color(0xFF085041);
       } else {
         textoComparacao = 'Tempo igual ao de ontem';
       }
     }
-    // -------------------------------
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -160,7 +180,6 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              // Anel de progresso
               SizedBox(
                 width: 72,
                 height: 72,
@@ -204,8 +223,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(fontSize: 12, color: Color(0xFF888780)),
                   ),
                   const SizedBox(height: 6),
-
-                  // NOSSA NOVA TAG DINÂMICA
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,

@@ -143,4 +143,52 @@ class UsageService {
       return [];
     }
   }
+
+  static Future<List<Map<String, dynamic>>> getTopAppsOntem() async {
+    try {
+      final agora = DateTime.now();
+      final hojeInicio = DateTime(agora.year, agora.month, agora.day);
+      final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
+
+      final dados = await UsageStats.queryUsageStats(ontemInicio, hojeInicio);
+
+      List<Map<String, dynamic>> listaApps = [];
+
+      for (final app in dados) {
+        if (_deveIgnorar(app.packageName)) continue;
+
+        int millis = int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
+        int minutos = millis ~/ 60000;
+
+        if (minutos > 0 && app.packageName != null) {
+          String nomeReal = 'Desconhecido';
+
+          try {
+            Application? appInfo = await DeviceApps.getApp(app.packageName!);
+            if (appInfo != null) {
+              nomeReal = appInfo.appName;
+            } else {
+              final partes = app.packageName!.split('.');
+              final ultimoNome = partes.last;
+              if (ultimoNome.isNotEmpty) {
+                nomeReal =
+                    ultimoNome.substring(0, 1).toUpperCase() +
+                    ultimoNome.substring(1).toLowerCase();
+              }
+            }
+          } catch (e) {}
+          listaApps.add({'nome': nomeReal, 'minutos': minutos});
+        }
+      }
+
+      listaApps.sort(
+        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
+      );
+      return listaApps
+          .take(10)
+          .toList(); // Traz os 10 mais usados para garantir
+    } catch (e) {
+      return [];
+    }
+  }
 }
