@@ -5,18 +5,15 @@ class DesafioService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // 1. BACK-END: Puxa o saldo atual de XP e Moedas do usuário para exibir na tela
   Stream<DocumentSnapshot> dadosUsuario() {
     String uid = _auth.currentUser?.uid ?? "";
     return _db.collection('usuarios').doc(uid).snapshots();
   }
 
-  // 2. BACK-END: Busca todos os desafios globais do sistema
   Stream<QuerySnapshot> listarDesafiosGlobais() {
     return _db.collection('desafios_globais').snapshots();
   }
 
-  // 3. BACK-END: Vigia em tempo real quais desafios o usuário já interagiu
   Stream<QuerySnapshot> listarMeusDesafios() {
     String uid = _auth.currentUser?.uid ?? "";
     return _db
@@ -26,7 +23,6 @@ class DesafioService {
         .snapshots();
   }
 
-  // 4. LÓGICA: Usuário clica em "Aceitar"
   Future<void> aceitarDesafio(String desafioId) async {
     try {
       String uid = _auth.currentUser?.uid ?? "";
@@ -44,7 +40,7 @@ class DesafioService {
     }
   }
 
-  // 5. LÓGICA DE VALIDAÇÃO: Bloqueia ou permite a conclusão baseado no tempo real do app
+  // LÓGICA DE VALIDAÇÃO COM LEVEL UP AUTOMÁTICO
   Future<bool> verificarEConcluir(
     String desafioId,
     String appAlvo,
@@ -57,7 +53,7 @@ class DesafioService {
       String uid = _auth.currentUser?.uid ?? "";
       if (uid.isEmpty) return false;
 
-      // VALIDAÇÃO DO TEMPO: Procura o app alvo dentro da lista de uso do celular do usuário
+      // 1. Processa a checagem do tempo de tela do app alvo
       int minutosUsadosNoApp = 0;
       for (var app in topAppsUsuario) {
         if (app['nome'].toString().toLowerCase() == appAlvo.toLowerCase()) {
@@ -66,16 +62,10 @@ class DesafioService {
         }
       }
 
-      // Se o usuário usou MAIS tempo do que o desafio permitia, ele falhou!
-      if (minutosUsadosNoApp > limiteMinutos) {
-        print(
-          "Validação falhou: Usou $minutosUsadosNoApp min no $appAlvo, o limite era $limiteMinutos min.",
-        );
-        return false;
-      }
+      // Se estourou o limite acordado, falhou na missão
+      if (minutosUsadosNoApp > limiteMinutos) return false;
 
-      // SE PASSOU NA VALIDAÇÃO: Dá as recompensas
-      // Marca o desafio como coletado para sumir/mudar na tela
+      // 2. Registra o sucesso na subcoleção do usuário
       await _db
           .collection('usuarios')
           .doc(uid)
@@ -83,29 +73,48 @@ class DesafioService {
           .doc(desafioId)
           .set({'status': 'coletado'}, SetOptions(merge: true));
 
-      // Busca os pontos atuais para somar
-      DocumentSnapshot userDoc = await _db
-          .collection('usuarios')
-          .doc(uid)
-          .get();
+      // 3. Lê o perfil atual para calcular o XP acumulado e verificar LEVEL UP
+      DocumentReference userRef = _db.collection('usuarios').doc(uid);
+      DocumentSnapshot userDoc = await userRef.get();
+
       int xpAtual = 0;
       int moedasAtuais = 0;
+      int nivelAtual = 1;
 
       if (userDoc.exists && userDoc.data() != null) {
         Map<String, dynamic> dados = userDoc.data() as Map<String, dynamic>;
-        xpAtual = dados['xp'] is int ? dados['xp'] : 0;
-        moedasAtuais = dados['moedas'] is int ? dados['moedas'] : 0;
+        xpAtual = dados['xp'] ?? 0;
+        moedasAtuais = dados['moedas'] ?? 0;
+        nivelAtual = dados['nivel'] ?? 1;
       }
 
-      // Injeta os novos valores no perfil do usuário
-      await _db.collection('usuarios').doc(uid).set({
-        'xp': xpAtual + xpRecompensa,
+      int novoXp = xpAtual + xpRecompensa;
+      int novoNivel = nivelAtual;
+
+      // Regra matemática: Cada nível custa (Nivel Atual * 1000) de XP para passar
+      int xpNecessario = nivelAtual * 1000;
+      List<String> novasBadges = [];
+
+      if (novoXp >= xpNecessario) {
+        novoNivel += 1;
+        novoXp = novoXp - xpNecessario; // Sobra acumula para o próximo nível
+        novasBadges.add(
+          'badge_lvl_$novoNivel',
+        ); // Destrava uma medalha automática
+      }
+
+      // 4. Grava tudo de uma vez de forma consistente no banco de dados
+      await userRef.set({
+        'xp': novoXp,
         'moedas': moedasAtuais + moedasRecompensa,
+        'nivel': novoNivel,
+        if (novasBadges.isNotEmpty)
+          'badges': FieldValue.arrayUnion(novasBadges),
       }, SetOptions(merge: true));
 
       return true;
     } catch (e) {
-      print("Erro ao concluir desafio: $e");
+      print("Erro ao validar conclusão: $e");
       return false;
     }
   }

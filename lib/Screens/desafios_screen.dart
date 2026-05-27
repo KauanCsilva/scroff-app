@@ -20,9 +20,9 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
     _carregarAppsDoAparelho();
   }
 
-  // Pega o uso real do celular para podermos validar os minutos
+  // BACK-END DE SEGURANÇA: Puxa o uso fechado de ONTEM para evitar fraudes
   Future<void> _carregarAppsDoAparelho() async {
-    final apps = await UsageService.getTopApps();
+    final apps = await UsageService.getTopAppsOntem();
     if (mounted) {
       setState(() {
         _appsDoUsuario = apps;
@@ -94,13 +94,12 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                   return const Center(child: Text('Nenhum desafio ativo.'));
                 }
 
-                // AQUI ESTAVA O ERRO! Agora tem apenas um "stream" chamando a função correta.
                 return StreamBuilder<QuerySnapshot>(
                   stream: _desafioService.listarMeusDesafios(),
                   builder: (context, snapshotMeus) {
                     final globais = snapshotGlobais.data!.docs;
 
-                    // Mapeia todos os dados do desafio do usuário (incluindo a data de início)
+                    // Mapeia todos os dados do desafio do utilizador (incluindo a data de início)
                     Map<String, Map<String, dynamic>> meusDesafiosDados = {};
                     if (snapshotMeus.hasData) {
                       for (var doc in snapshotMeus.data!.docs) {
@@ -135,15 +134,15 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                         String appAlvo = desafio['app_alvo'] ?? '';
                         int limiteMinutos = desafio['limite_minutos'] ?? 0;
 
-                        // Puxa os dados do usuário para esse desafio
+                        // Puxa os dados do utilizador para este desafio
                         var meuDesafio = meusDesafiosDados[id];
                         String statusAtual =
                             meuDesafio?['status'] ?? 'nao_aceito';
 
-                        // LÓGICA DA BRECHA (EXPLOIT) - DESATIVADA TEMPORARIAMENTE PARA TESTES!
+                        // LÓGICA DA BRECHA (EXPLOIT) - ATIVADA!
+                        // Trava o botão de concluir no mesmo dia em que o desafio foi aceite.
                         bool bloqueadoPorTempo = false;
 
-                        /* === CÓDIGO COMENTADO PARA VOCÊ PODER TESTAR IMEDIATAMENTE ===
                         Timestamp? dataInicioTs = meuDesafio?['data_inicio'];
                         if (statusAtual == 'aceito' && dataInicioTs != null) {
                           DateTime dataInicio = dataInicioTs.toDate();
@@ -155,7 +154,6 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                             bloqueadoPorTempo = true;
                           }
                         }
-                        ============================================================= */
 
                         return Card(
                           margin: const EdgeInsets.symmetric(
@@ -191,7 +189,7 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                     onPressed: null,
                                     child: Text('Em andamento...'),
                                   )
-                                // Se já for o dia seguinte (ou no nosso caso de teste, liberado direto), pode concluir!
+                                // Se já for o dia seguinte, liberta para concluir!
                                 : ElevatedButton(
                                     onPressed: () async {
                                       bool sucesso = await _desafioService
@@ -212,7 +210,7 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                             content: Text(
                                               sucesso
                                                   ? 'Sucesso! Recompensa injetada na conta!'
-                                                  : 'Falha! Você estourou o limite de tempo do app.',
+                                                  : 'Falha! Você estourou o limite de tempo do app ontem.',
                                             ),
                                             backgroundColor: sucesso
                                                 ? Colors.green

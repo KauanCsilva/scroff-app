@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'Screens/home_screen.dart';
 import 'Screens/permission_screen.dart';
 import 'Screens/login_screen.dart';
 import 'services/usage_service.dart';

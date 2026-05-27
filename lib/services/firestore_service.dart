@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:scroff/services/usage_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -69,6 +70,68 @@ class FirestoreService {
       // "Se XP > 1000, nivel = nivel + 1"
     } catch (e) {
       print("Erro ao adicionar XP: $e");
+    }
+  }
+
+  Future<void> sincronizarDadosDiarios() async {
+    try {
+      String uid = _auth.currentUser?.uid ?? "";
+      if (uid.isEmpty) return;
+
+      // 1. Puxa os minutos de hoje direto do celular (Para o Ranking das Partys)
+      int minutosHoje = await UsageService.getMinutosHoje();
+
+      DocumentReference userRef = _db.collection('usuarios').doc(uid);
+      DocumentSnapshot userDoc = await userRef.get();
+
+      // Pega a data de hoje formatada (ex: "2023-10-25")
+      DateTime agora = DateTime.now();
+      String dataHojeStr = "${agora.year}-${agora.month}-${agora.day}";
+
+      bool virouODia = false;
+
+      // Verifica se é a primeira vez que ele abre o app hoje
+      if (userDoc.exists) {
+        Map<String, dynamic> dados = userDoc.data() as Map<String, dynamic>;
+        String ultimaSincronizacao = dados['ultima_sincronizacao'] ?? "";
+
+        if (ultimaSincronizacao != dataHojeStr) {
+          virouODia = true; // Opa, é um novo dia!
+        }
+      } else {
+        virouODia = true;
+      }
+
+      // 2. Atualiza os minutos atuais e carimba a data de hoje no perfil
+      await userRef.set({
+        'minutos_hoje': minutosHoje,
+        'ultima_sincronizacao': dataHojeStr,
+      }, SetOptions(merge: true));
+
+      // 3. RESET DIÁRIO (Se virou o dia, apaga os desafios concluídos de ontem)
+      if (virouODia) {
+        QuerySnapshot meusDesafios = await userRef
+            .collection('meus_desafios')
+            .get();
+
+        // Loop que limpa a tela, mas poupa os desafios que ele precisa concluir hoje!
+        for (var doc in meusDesafios.docs) {
+          Map<String, dynamic> dadosDesafio =
+              doc.data() as Map<String, dynamic>;
+          String status = dadosDesafio['status'] ?? '';
+
+          // Só apaga os desafios que ele já clicou em concluir e ganhou o prêmio ('coletado')
+          if (status == 'coletado') {
+            await doc.reference.delete();
+          }
+          // Os que estão como 'aceito' continuam na tela para ele poder clicar no botão verde hoje!
+        }
+        print("🔄 Dia virou! Desafios coletados foram limpos da tela.");
+      }
+
+      print("✅ Sincronização concluída: $minutosHoje minutos gravados.");
+    } catch (e) {
+      print("Erro na sincronização diária: $e");
     }
   }
 }
