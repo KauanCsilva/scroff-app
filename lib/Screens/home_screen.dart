@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/desafio_service.dart';
 import '../services/firestore_service.dart';
 import '../services/usage_service.dart';
+import 'modo_foco_screen.dart';
+import '../widgets/mascote_widget.dart';
+import 'configuracoes_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,35 +43,63 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _carregandoUso = false;
-        });
-      }
+      if (mounted) setState(() => _carregandoUso = false);
     }
+  }
+
+  String _formatarTempo(int totalMinutos) {
+    if (totalMinutos < 60) return '${totalMinutos}m';
+    int horas = totalMinutos ~/ 60;
+    int minutos = totalMinutos % 60;
+    return '${horas}h ${minutos}m';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Fundo totalmente limpo
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        elevation: 0, // Tira a sombra da AppBar para ficar mais chapado/clean
+        elevation: 0,
         title: const Text('Scroff Dashboard'),
         backgroundColor: const Color(0xFF1D9E75),
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+            icon: const Icon(Icons.settings),
+            tooltip: 'Configurações',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ConfiguracoesScreen(),
+                ),
+              );
             },
+          ),
+
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async => await FirebaseAuth.instance.signOut(),
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ModoFocoScreen()),
+          );
+        },
+        backgroundColor: const Color(0xFF1D9E75),
+        icon: const Icon(Icons.timer, color: Colors.white),
+        label: const Text(
+          'Focar',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
       body: Column(
         children: [
-          // 1. MINI PERFIL REATIVO (CLEAN)
+          // MINI PERFIL REATIVO
           StreamBuilder<DocumentSnapshot>(
             stream: _desafioService.dadosUsuario(),
             builder: (context, snapshot) {
@@ -79,7 +110,8 @@ class _HomeScreenState extends State<HomeScreen> {
               String nome = user['nome'] ?? 'Usuário';
               int nivel = user['nivel'] ?? 1;
               int xp = user['xp'] ?? 0;
-              String iconeAvatar = user['avatar_atual'] ?? '👤';
+              // AGORA PEGA DO FIREBASE O ACESSÓRIO
+              String acessorioAtual = user['acessorio_atual'] ?? 'nenhum';
 
               int xpNecessario = nivel * 1000;
               double progressoBarra = xp / xpNecessario;
@@ -91,16 +123,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey!),
-                  ), // Linha sutil separando o header
+                  border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
                 ),
                 child: Row(
                   children: [
-                    Text(
-                      iconeAvatar.length > 3 ? '🎭' : iconeAvatar,
-                      style: const TextStyle(fontSize: 36),
+                    // O MASCOTE VIVO E SINCRONIZADO!
+                    MascoteWidget(
+                      minutosDeTela: _minutosHoje,
+                      acessorio: acessorioAtual,
                     ),
+
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -118,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(10),
                             child: LinearProgressIndicator(
                               value: progressoBarra,
-                              backgroundColor: Colors.grey,
+                              backgroundColor: Colors.grey[200],
                               valueColor: const AlwaysStoppedAnimation(
                                 Color(0xFF1D9E75),
                               ),
@@ -163,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
 
-          // 2. DADOS DE USO (VISUAL MINIMALISTA)
+          // TEMPO DE TELA E TOP APPS
           Expanded(
             child: _carregandoUso
                 ? const Center(
@@ -173,11 +205,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: const Color(0xFF1D9E75),
                     onRefresh: _carregarDadosDeUso,
                     child: SingleChildScrollView(
-                      physics:
-                          const AlwaysScrollableScrollPhysics(), // Permite o 'puxar para atualizar'
+                      physics: const AlwaysScrollableScrollPhysics(),
                       child: Column(
                         children: [
-                          // TEMPO DE TELA GIGANTE E CENTRALIZADO
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 40),
                             child: Column(
@@ -192,19 +222,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '${_minutosHoje}m',
+                                  _formatarTempo(_minutosHoje),
                                   style: const TextStyle(
-                                    fontSize: 72,
+                                    fontSize: 64,
                                     fontWeight: FontWeight.w800,
                                     color: Color(0xFF1D9E75),
-                                    height: 1.0, // Deixa o número bem compacto
+                                    height: 1.0,
                                   ),
                                 ),
                               ],
                             ),
                           ),
 
-                          // TÍTULO DA LISTA
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -219,12 +248,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 8),
 
-                          // LISTA CLEAN COM LINHAS DIVISÓRIAS FINAS
                           _topApps.isEmpty
                               ? const Padding(
                                   padding: EdgeInsets.all(24.0),
                                   child: Text(
-                                    'Nenhum dado registrado ainda.',
+                                    'Nenhum dado registrado.',
                                     style: TextStyle(color: Colors.grey),
                                   ),
                                 )
@@ -241,8 +269,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                   itemBuilder: (context, index) {
                                     var app = _topApps[index];
-                                    String nomeApp =
-                                        app['nome'] ?? 'Desconhecido';
                                     int minsApp = app['minutos'] ?? 0;
 
                                     return ListTile(
@@ -260,14 +286,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                       ),
                                       title: Text(
-                                        nomeApp,
+                                        app['nome'] ?? 'Desconhecido',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w600,
                                           fontSize: 16,
                                         ),
                                       ),
                                       trailing: Text(
-                                        '${minsApp}m',
+                                        _formatarTempo(minsApp),
                                         style: const TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,

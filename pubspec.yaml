@@ -39,6 +39,9 @@ dependencies:
   firebase_core: ^4.8.0
   firebase_auth: ^6.5.0
   cloud_firestore: ^6.4.1
+  intl: ^0.20.2
+  confetti: ^0.8.0
+  audioplayers: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +64,8 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/sounds/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

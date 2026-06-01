@@ -1,137 +1,137 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:scroff/services/usage_service.dart';
+import 'usage_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Função para salvar ou atualizar os dados do usuário atual
-  // Atualize a sua função salvarTempoDeTela no seu firestore_service.dart:
-  Future<void> salvarTempoDeTela(int minutosUsados) async {
-    try {
-      String? uid = _auth.currentUser?.uid;
-      String? email = _auth.currentUser?.email;
-
-      if (uid != null && email != null) {
-        // GARANTIA TOTAL: Quebramos o texto e pegamos o primeiro item
-        // convertendo explicitamente para String comum.
-        final List<String> partesEmail = email.split('@');
-        final String nomePadrao = partesEmail.first.toString();
-
-        await _db.collection('usuarios').doc(uid).set({
-          'email': email,
-          'minutos_hoje': minutosUsados,
-          'ultima_atualizacao': FieldValue.serverTimestamp(),
-          // O merge: true impede que essa linha apague o nome
-          // caso o usuário já tenha criado um nome personalizado antes
-          'nome': nomePadrao,
-        }, SetOptions(merge: true));
-
-        print("Dados salvos com o nome padrão: $nomePadrao");
-      }
-    } catch (e) {
-      print("Erro ao salvar no Firestore: $e");
-    }
-  }
-
-  // Função para buscar os dados do usuário (ex: para mostrar no perfil)
-  Stream<DocumentSnapshot> getDadosUsuario() {
-    String uid = _auth.currentUser?.uid ?? "";
-    return _db.collection('usuarios').doc(uid).snapshots();
-  }
-
-  Future<void> atualizarNomeUsuario(String novoNome) async {
-    try {
-      String? uid = _auth.currentUser?.uid;
-
-      if (uid != null) {
-        // Atualiza apenas o campo 'nome' dentro do documento do usuário
-        await _db.collection('usuarios').doc(uid).update({
-          'nome': novoNome.trim(),
-        });
-        print("Nome do usuário atualizado para: $novoNome");
-      }
-    } catch (e) {
-      print("Erro ao atualizar nome: $e");
-    }
-  }
-
-  Future<void> adicionarXP(int quantidade) async {
-    try {
-      String uid = _auth.currentUser?.uid ?? "";
-
-      // O 'increment' do Firestore é ótimo porque evita erro de cálculo se a internet oscilar
-      await _db.collection('usuarios').doc(uid).update({
-        'xp': FieldValue.increment(quantidade),
-      });
-
-      // Aqui você poderia colocar uma lógica de:
-      // "Se XP > 1000, nivel = nivel + 1"
-    } catch (e) {
-      print("Erro ao adicionar XP: $e");
-    }
-  }
-
+  // 1. SINCRO DIÁRIA + CORRETOR AUTOMÁTICO DE NÍVEL DE SEGURANÇA
   Future<void> sincronizarDadosDiarios() async {
     try {
       String uid = _auth.currentUser?.uid ?? "";
       if (uid.isEmpty) return;
 
-      // 1. Puxa os minutos de hoje direto do celular (Para o Ranking das Partys)
-      int minutosHoje = await UsageService.getMinutosHoje();
+      int minutosTotais = await UsageService.getMinutosHoje();
+      List<Map<String, dynamic>> appsUsados = await UsageService.getTopApps();
 
       DocumentReference userRef = _db.collection('usuarios').doc(uid);
       DocumentSnapshot userDoc = await userRef.get();
 
-      // Pega a data de hoje formatada (ex: "2023-10-25")
-      DateTime agora = DateTime.now();
-      String dataHojeStr = "${agora.year}-${agora.month}-${agora.day}";
+      int minutosDescontados = 0;
+      int xpAtual = 0;
+      int nivelAtual = 1;
+      int moedasAtuais = 0;
+      String ultimaSincronizacao = "";
+      List<dynamic> whitelist = [];
 
-      bool virouODia = false;
-
-      // Verifica se é a primeira vez que ele abre o app hoje
       if (userDoc.exists) {
         Map<String, dynamic> dados = userDoc.data() as Map<String, dynamic>;
-        String ultimaSincronizacao = dados['ultima_sincronizacao'] ?? "";
+        whitelist = dados['whitelist'] ?? [];
+        xpAtual = dados['xp'] ?? 0;
+        nivelAtual = dados['nivel'] ?? 1;
+        moedasAtuais = dados['moedas'] ?? 0;
+        ultimaSincronizacao = dados['ultima_sincronizacao'] ?? "";
 
-        if (ultimaSincronizacao != dataHojeStr) {
-          virouODia = true; // Opa, é um novo dia!
+        for (var app in appsUsados) {
+          String nomeApp = app['nome'].toString().toLowerCase();
+          for (var itemAprovado in whitelist) {
+            if (nomeApp.contains(itemAprovado.toString().toLowerCase())) {
+              minutosDescontados += (app['minutos'] as int);
+              break;
+            }
+          }
         }
-      } else {
-        virouODia = true;
       }
 
-      // 2. Atualiza os minutos atuais e carimba a data de hoje no perfil
+      int minutosFinaisRanking = minutosTotais - minutosDescontados;
+      if (minutosFinaisRanking < 0) minutosFinaisRanking = 0;
+
+      // --- TRAVA DE SEGURANÇA (Resolve o seu problema de 1050XP) ---
+      int xpNecessario = nivelAtual * 1000;
+      bool correcaoLevelUp = false;
+      while (xpAtual >= xpNecessario) {
+        xpAtual -= xpNecessario;
+        nivelAtual++;
+        xpNecessario = nivelAtual * 1000;
+        correcaoLevelUp = true;
+      }
+      if (correcaoLevelUp) {
+        print(
+          "🛠️ Corretor de Nível ativado! Usuário ajustado para o Nível $nivelAtual.",
+        );
+      }
+      // -------------------------------------------------------------
+
+      DateTime agora = DateTime.now();
+      String dataHojeStr = "${agora.year}-${agora.month}-${agora.day}";
+      bool virouODia = ultimaSincronizacao != dataHojeStr;
+
       await userRef.set({
-        'minutos_hoje': minutosHoje,
+        'minutos_hoje': minutosFinaisRanking,
         'ultima_sincronizacao': dataHojeStr,
+        'xp': xpAtual,
+        'nivel': nivelAtual,
       }, SetOptions(merge: true));
 
-      // 3. RESET DIÁRIO (Se virou o dia, apaga os desafios concluídos de ontem)
-      if (virouODia) {
+      if (virouODia && userDoc.exists) {
         QuerySnapshot meusDesafios = await userRef
             .collection('meus_desafios')
             .get();
-
-        // Loop que limpa a tela, mas poupa os desafios que ele precisa concluir hoje!
         for (var doc in meusDesafios.docs) {
           Map<String, dynamic> dadosDesafio =
               doc.data() as Map<String, dynamic>;
-          String status = dadosDesafio['status'] ?? '';
-
-          // Só apaga os desafios que ele já clicou em concluir e ganhou o prêmio ('coletado')
-          if (status == 'coletado') {
+          if (dadosDesafio['status'] == 'coletado') {
             await doc.reference.delete();
           }
-          // Os que estão como 'aceito' continuam na tela para ele poder clicar no botão verde hoje!
         }
-        print("🔄 Dia virou! Desafios coletados foram limpos da tela.");
+        print("🔄 Dia virou! Desafios coletados foram limpos.");
       }
-
-      print("✅ Sincronização concluída: $minutosHoje minutos gravados.");
     } catch (e) {
       print("Erro na sincronização diária: $e");
+    }
+  }
+
+  // 2. FUNÇÃO MESTRE CENTRALIZADA DE RECOMPENSA E LEVEL UP
+  // Qualquer parte do app que der pontos vai chamar essa função única!
+  Future<bool> adicionarRecompensa(int xpGanho, int moedasGanhas) async {
+    try {
+      String uid = _auth.currentUser?.uid ?? "";
+      if (uid.isEmpty) return false;
+
+      DocumentReference userRef = _db.collection('usuarios').doc(uid);
+      DocumentSnapshot userSnap = await userRef.get();
+
+      if (userSnap.exists) {
+        Map<String, dynamic> userData = userSnap.data() as Map<String, dynamic>;
+        int xpAtual = userData['xp'] ?? 0;
+        int nivelAtual = userData['nivel'] ?? 1;
+        int moedasAtuais = userData['moedas'] ?? 0;
+
+        int xpNovo = xpAtual + xpGanho;
+        int xpNecessario = nivelAtual * 1000;
+        bool subiuDeNivel = false;
+
+        // Processa o Level Up acumulativo
+        while (xpNovo >= xpNecessario) {
+          xpNovo -= xpNecessario;
+          nivelAtual++;
+          xpNecessario = nivelAtual * 1000;
+          subiuDeNivel = true;
+        }
+
+        await userRef.update({
+          'xp': xpNovo,
+          'nivel': nivelAtual,
+          'moedas': moedasAtuais + moedasGanhas,
+        });
+
+        return subiuDeNivel; // Retorna true se passou de nível para a tela soltar confetes
+      }
+      return false;
+    } catch (e) {
+      print("Erro ao adicionar recompensa: $e");
+      return false;
     }
   }
 }

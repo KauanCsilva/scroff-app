@@ -22,7 +22,7 @@ class _DashboardPageState extends State<DashboardPage> {
     const HomeScreen(), // Índice 0
     const DesafiosScreen(), // Índice 1
     const PartysScreen(), // Índice 2
-    const LojaAvatarScreen(), // Índice 3
+    const LojaScreen(), // Índice 3
   ];
 
   @override

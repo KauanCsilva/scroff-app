@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/grupo_service.dart';
-import 'grupo_detalhes_screen.dart'; // Importado para funcionar o clique do ranking
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math';
+import 'grupo_detalhes_screen.dart';
+import 'configuracoes_screen.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class PartysScreen extends StatefulWidget {
   const PartysScreen({super.key});
@@ -11,172 +14,280 @@ class PartysScreen extends StatefulWidget {
 }
 
 class _PartysScreenState extends State<PartysScreen> {
-  final GrupoService _grupoService = GrupoService();
-  final TextEditingController _controllerNome = TextEditingController();
-  final TextEditingController _controllerCodigo = TextEditingController();
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _criarGrupo() {
+    TextEditingController nomeCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Criar nova Party'),
+        content: TextField(
+          controller: nomeCtrl,
+          decoration: const InputDecoration(
+            hintText: 'Nome do Grupo (ex: Galera da Facul)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1D9E75),
+            ),
+            onPressed: () async {
+              if (nomeCtrl.text.isEmpty) {
+                return;
+              }
+              String uid = _auth.currentUser!.uid;
+              String codigo = (Random().nextInt(900000) + 100000).toString();
+
+              await _db.collection('grupos').add({
+                'nome': nomeCtrl.text,
+                'codigo': codigo,
+                'criador_id': uid,
+                'membros': [uid],
+                'criado_em': FieldValue.serverTimestamp(),
+              });
+
+              if (mounted) {
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Criar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _entrarGrupo() {
+    TextEditingController codigoCtrl = TextEditingController();
+    final AudioPlayer audioPlayerLocal =
+        AudioPlayer(); // Criado localmente para tocar rápido
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Entrar numa Party'),
+        content: TextField(
+          controller: codigoCtrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(hintText: 'Código de 6 dígitos'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1D9E75),
+            ),
+            onPressed: () async {
+              if (codigoCtrl.text.isEmpty) return;
+              String uid = _auth.currentUser!.uid;
+
+              var query = await _db
+                  .collection('grupos')
+                  .where('codigo', isEqualTo: codigoCtrl.text)
+                  .get();
+
+              if (query.docs.isNotEmpty) {
+                var docGrupo = query.docs.first;
+                List<dynamic> membros = docGrupo['membros'] ?? [];
+
+                if (!membros.contains(uid)) {
+                  membros.add(uid);
+                  await docGrupo.reference.update({'membros': membros});
+
+                  // TOCA O SOM DE ENTRADA NO GRUPO
+                  await audioPlayerLocal.play(
+                    AssetSource('sounds/User Party.mp3'),
+                  );
+                }
+                if (mounted) Navigator.pop(context);
+              } else {
+                if (mounted)
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Grupo não encontrado!'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+              }
+            },
+            child: const Text('Entrar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    String uid = _auth.currentUser?.uid ?? '';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Minhas Partys (Grupos)'),
+        title: const Text('Minhas Partys'),
         backgroundColor: const Color(0xFF1D9E75),
         foregroundColor: Colors.white,
-      ),
-      body: Column(
-        children: [
-          // FRONT-END: Card superior com botões de ação (Criar e Entrar)
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _mostrarDialogCriar(context),
-                    child: const Text('Criar Grupo'),
-                  ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ConfiguracoesScreen(),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _mostrarDialogEntrar(context),
-                    child: const Text('Entrar com Código'),
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
+        ],
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _db
+            .collection('grupos')
+            .where('membros', arrayContains: uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          // BACK-END: StreamBuilder que escuta os grupos do usuário em tempo real
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _grupoService.listarMeusGrupos(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text('Você não está em nenhum grupo ainda.'),
-                  );
-                }
-
-                final grupos = snapshot.data!.docs;
-
-                return ListView.builder(
-                  itemCount: grupos.length,
-                  itemBuilder: (context, index) {
-                    // Captura os dados do documento do grupo
-                    var grupoDoc = grupos[index];
-                    var grupo = grupoDoc.data() as Map<String, dynamic>;
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 6,
-                      ),
-                      child: ListTile(
-                        leading: const Text(
-                          '🛡️',
-                          style: TextStyle(fontSize: 24),
-                        ),
-                        title: Text(grupo['nome'] ?? 'Sem nome'),
-                        subtitle: Text('Código de Convite: ${grupo['codigo']}'),
-                        trailing: Text(
-                          '${grupo['membros']?.length ?? 1} membros',
-                        ),
-                        // CONECTADO: Abre a tela do ranking ao clicar no grupo
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  GrupoDetalhesScreen(grupoData: grupo),
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.group_off, size: 80, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Você não está em nenhuma Party.',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                  const SizedBox(height: 30),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add),
+                    label: const Text('Criar ou Entrar em Grupo'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1D9E75),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        builder: (context) => Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.group_add),
+                              title: const Text('Criar Nova Party'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _criarGrupo();
+                              },
                             ),
-                          );
-                        },
+                            ListTile(
+                              leading: const Icon(Icons.login),
+                              title: const Text('Entrar com Código'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _entrarGrupo();
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              var document = snapshot.data!.docs[index];
+              var grupoData = document.data() as Map<String, dynamic>;
+              grupoData['id'] = document.id;
+
+              List<dynamic> membros = grupoData['membros'] ?? [];
+
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFE1F5EE),
+                    child: Icon(Icons.group, color: Color(0xFF1D9E75)),
+                  ),
+                  title: Text(
+                    grupoData['nome'] ?? 'Grupo Sem Nome',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${membros.length} membros • Código: ${grupoData['codigo']}',
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            GrupoDetalhesScreen(grupoData: grupoData),
                       ),
                     );
                   },
-                );
-              },
+                ),
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            builder: (context) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.group_add),
+                  title: const Text('Criar Nova Party'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _criarGrupo();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.login),
+                  title: const Text('Entrar com Código'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _entrarGrupo();
+                  },
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  //  Caixa de texto que aparece para digitar o nome do grupo novo
-  void _mostrarDialogCriar(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Criar Nova Party'),
-        content: TextField(
-          controller: _controllerNome,
-          decoration: const InputDecoration(hintText: "Nome do grupo"),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (_controllerNome.text.isNotEmpty) {
-                await _grupoService.criarGrupo(_controllerNome.text);
-                _controllerNome.clear();
-                if (context.mounted) Navigator.pop(context);
-              }
-            },
-            child: const Text('Criar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  //  Caixa de texto que aparece para digitar o código de um grupo
-  void _mostrarDialogEntrar(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Entrar em uma Party'),
-        content: TextField(
-          controller: _controllerCodigo,
-          decoration: const InputDecoration(hintText: "Código de 6 dígitos"),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (_controllerCodigo.text.isNotEmpty) {
-                bool entrou = await _grupoService.entrarNoGrupo(
-                  _controllerCodigo.text,
-                );
-                _controllerCodigo.clear();
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  if (!entrou) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Código inválido ou grupo não encontrado.',
-                        ),
-                      ),
-                    );
-                  }
-                }
-              }
-            },
-            child: const Text('Entrar'),
-          ),
-        ],
+          );
+        },
+        backgroundColor: const Color(0xFF1D9E75),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
