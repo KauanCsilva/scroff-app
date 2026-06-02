@@ -227,7 +227,7 @@ class _LojaScreenState extends State<LojaScreen> {
       }
 
       await _db.collection('usuarios').doc(uid).update(updates);
-      await _audioPlayer.play(AssetSource('sounds/compra.mp3'));
+      await _audioPlayer.play(AssetSource('sounds/Loja.mp3'));
 
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(

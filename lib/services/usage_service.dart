@@ -144,6 +144,30 @@ class UsageService {
     }
   }
 
+  // Retorna todos os apps instalados no dispositivo (excluindo sistema)
+  static Future<List<Map<String, dynamic>>> getAppsInstalados() async {
+    try {
+      List<Application> apps = await DeviceApps.getInstalledApplications(
+        includeAppIcons: false,
+        includeSystemApps: false,
+        onlyAppsWithLaunchIntent: true,
+      );
+
+      List<Map<String, dynamic>> lista = apps
+          .where((app) => !_deveIgnorar(app.packageName))
+          .map((app) => {'id': app.packageName, 'nome': app.appName})
+          .toList();
+
+      lista.sort(
+        (a, b) => (a['nome'] as String).compareTo(b['nome'] as String),
+      );
+
+      return lista;
+    } catch (e) {
+      return [];
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getTopAppsOntem() async {
     try {
       final agora = DateTime.now();

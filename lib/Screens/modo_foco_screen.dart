@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:confetti/confetti.dart';
 import 'dart:async';
 import '../services/firestore_service.dart';
 
@@ -23,6 +24,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _musicaTocando = false;
+  late ConfettiController _confettiController;
 
   // LOGICA DO COMPLEMENTO (CAFÉ)
   bool _cafeAtivadoNoFoco = false;
@@ -31,12 +33,16 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
   void initState() {
     super.initState();
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _audioPlayer.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -68,7 +74,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
       // 👇 LINHA CORRIGIDA: Inicia o som automaticamente ao habilitar o cronômetro 👇
       if (!_musicaTocando) {
         try {
-          await _audioPlayer.play(AssetSource('sounds/lofi.mp3'));
+          await _audioPlayer.play(AssetSource('sounds/Lofi.mp3'));
           _musicaTocando = true;
         } catch (e) {
           debugPrint("Erro ao iniciar áudio: $e");
@@ -134,6 +140,13 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
       moedasBase,
     );
 
+    if (subiuDeNivel) {
+      _confettiController.play();
+      try {
+        await AudioPlayer().play(AssetSource('sounds/levelup.mp3'));
+      } catch (_) {}
+    }
+
     if (mounted) {
       showDialog(
         context: context,
@@ -196,121 +209,142 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
 
         int quantCafes = consumiveis['cafe'] ?? 0;
 
-        return Scaffold(
-          backgroundColor: const Color(0xFF111111),
-          appBar: AppBar(
-            title: const Text('Modo Foco'),
-            backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            actions: [
-              IconButton(
-                icon: Icon(
-                  _musicaTocando ? Icons.volume_up : Icons.volume_off,
-                  color: Colors.white,
-                ),
-                onPressed: _estaRodando ? _alternarMusica : null,
-              ),
-            ],
-          ),
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _estaRodando
-                      ? (_cafeAtivadoNoFoco
-                            ? '☕ Foco Turbinado com Café!'
-                            : '🧘🏽‍♂️ Focando com Lo-Fi...')
-                      : 'Pronto para começar?',
-                  style: const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 16,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 30),
-
-                Text(
-                  _formatarTempo(),
-                  style: const TextStyle(
-                    fontSize: 80,
-                    fontWeight: FontWeight.w200,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 40),
-
-                if (_estaRodando && !_cafeAtivadoNoFoco)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: OutlinedButton.icon(
-                      icon: const Icon(
-                        Icons.local_cafe,
-                        color: Colors.amber,
-                        size: 18,
-                      ),
-                      label: Text(
-                        'Ativar Café Expresso (Tem: $quantCafes)',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.white24),
-                      ),
-                      onPressed: quantCafes > 0
-                          ? () => _usarCafe(consumiveis)
-                          : null,
-                    ),
-                  ),
-                if (_cafeAtivadoNoFoco)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 20),
-                    child: Text(
-                      '🚀 Multiplicador de XP 2x Ativo',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-
-                GestureDetector(
-                  onTap: _alternarCronometro,
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _estaRodando
-                          ? Colors.amber
-                          : const Color(0xFF1D9E75),
-                    ),
-                    child: Icon(
-                      _estaRodando ? Icons.pause : Icons.play_arrow,
-                      size: 40,
+        return Stack(
+          children: [
+            Scaffold(
+              backgroundColor: const Color(0xFF111111),
+              appBar: AppBar(
+                title: const Text('Modo Foco'),
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                actions: [
+                  IconButton(
+                    icon: Icon(
+                      _musicaTocando ? Icons.volume_up : Icons.volume_off,
                       color: Colors.white,
                     ),
-                  ),
-                ),
-
-                if (_estaRodando) ...[
-                  const SizedBox(height: 30),
-                  TextButton(
-                    onPressed: _cancelarFoco,
-                    child: const Text(
-                      'Desistir',
-                      style: TextStyle(
-                        color: Colors.redAccent,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    onPressed: _estaRodando ? _alternarMusica : null,
                   ),
                 ],
-              ],
+              ),
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _estaRodando
+                          ? (_cafeAtivadoNoFoco
+                                ? '☕ Foco Turbinado com Café!'
+                                : '🧘🏽‍♂️ Focando com Lo-Fi...')
+                          : 'Pronto para começar?',
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 16,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    Text(
+                      _formatarTempo(),
+                      style: const TextStyle(
+                        fontSize: 80,
+                        fontWeight: FontWeight.w200,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    if (_estaRodando && !_cafeAtivadoNoFoco)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: OutlinedButton.icon(
+                          icon: const Icon(
+                            Icons.local_cafe,
+                            color: Colors.amber,
+                            size: 18,
+                          ),
+                          label: Text(
+                            'Ativar Café Expresso (Tem: $quantCafes)',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white24),
+                          ),
+                          onPressed: quantCafes > 0
+                              ? () => _usarCafe(consumiveis)
+                              : null,
+                        ),
+                      ),
+                    if (_cafeAtivadoNoFoco)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 20),
+                        child: Text(
+                          '🚀 Multiplicador de XP 2x Ativo',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+
+                    GestureDetector(
+                      onTap: _alternarCronometro,
+                      child: Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _estaRodando
+                              ? Colors.amber
+                              : const Color(0xFF1D9E75),
+                        ),
+                        child: Icon(
+                          _estaRodando ? Icons.pause : Icons.play_arrow,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+
+                    if (_estaRodando) ...[
+                      const SizedBox(height: 30),
+                      TextButton(
+                        onPressed: _cancelarFoco,
+                        child: const Text(
+                          'Desistir',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
+            // CONFETE DE LEVEL UP — flutua por cima do Scaffold
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                numberOfParticles: 30,
+                gravity: 0.2,
+                emissionFrequency: 0.05,
+                colors: const [
+                  Color(0xFF1D9E75),
+                  Colors.amber,
+                  Colors.white,
+                  Colors.orange,
+                ],
+              ),
+            ),
+          ],
         );
       },
     );
