@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:confetti/confetti.dart';
 import '../services/usage_service.dart';
 import '../services/firestore_service.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -13,57 +13,47 @@ class DesafiosScreen extends StatefulWidget {
   State<DesafiosScreen> createState() => _DesafiosScreenState();
 }
 
-class _DesafiosScreenState extends State<DesafiosScreen> {
+class _DesafiosScreenState extends State<DesafiosScreen>
+    with SingleTickerProviderStateMixin {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   List<Map<String, dynamic>> _usoHoje = [];
   bool _carregandoUso = true;
 
-  late ConfettiController _confettiController;
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  // CONTROLADORES DA ANIMAÇÃO DE XP FLUTUANTE
+  late AnimationController _xpAnimController;
+  late Animation<double> _xpOpacity;
+  late Animation<double> _xpPosition;
+  String _textoXpFlutuante = "";
+  bool _mostrarXpFlutuante = false;
 
   @override
   void initState() {
     super.initState();
-    _confettiController = ConfettiController(
-      duration: const Duration(seconds: 3),
-    );
     _carregarUsoEmTempoReal();
+
+    _xpAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+    _xpOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _xpAnimController,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+      ),
+    );
+    _xpPosition = Tween<double>(begin: 0.0, end: -120.0).animate(
+      CurvedAnimation(parent: _xpAnimController, curve: Curves.easeOutCubic),
+    );
   }
 
   @override
   void dispose() {
-    _confettiController.dispose();
     _audioPlayer.dispose();
+    _xpAnimController.dispose();
     super.dispose();
-  }
-
-  void _testarConfeteELevelUp() {
-    _confettiController.play();
-    _audioPlayer.play(AssetSource('sounds/levelup.mp3'));
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('🎊 LEVEL UP! 🎊'),
-        content: const Text(
-          'Incrível! Você subiu de nível!\n\n+500 XP\n+100 Moedas',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Coletar MEGA Recompensa',
-              style: TextStyle(
-                color: Color(0xFF1D9E75),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _carregarUsoEmTempoReal() async {
@@ -76,11 +66,7 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _carregandoUso = false;
-        });
-      }
+      if (mounted) setState(() => _carregandoUso = false);
     }
   }
 
@@ -101,19 +87,16 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
           'aceito_em': FieldValue.serverTimestamp(),
           'titulo': dadosGlobais['titulo'] ?? 'Desafio',
           'app_alvo': dadosGlobais['app_alvo'] ?? '',
+          'tipo': dadosGlobais['tipo'] ?? 'diario',
+          'hora_inicio': dadosGlobais['hora_inicio'] ?? 0,
+          'hora_fim': dadosGlobais['hora_fim'] ?? 23,
           'limite_minutos': dadosGlobais['limite_minutos'] ?? 0,
           'xp_recompensa': dadosGlobais['xp_recompensa'] ?? 0,
           'moedas_recompensa': dadosGlobais['moedas_recompensa'] ?? 0,
         });
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Desafio aceite! Foco total hoje.'),
-          backgroundColor: Color(0xFF1D9E75),
-        ),
-      );
-    }
+    HapticFeedback.lightImpact();
+    _carregarUsoEmTempoReal();
   }
 
   Future<void> _reprovarDesafioImediatamente(String desafioId) async {
@@ -127,6 +110,9 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
         .update({'status': 'falhou'});
   }
 
+  // =========================================================================
+  // 👇 VALIDAÇÃO BLINDADA: Lê o uso EXATO da janela de tempo em que foi aceito 👇
+  // =========================================================================
   Future<void> _concluirDesafio(
     String desafioId,
     Map<String, dynamic> meuDesafio,
@@ -138,25 +124,85 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
     int limite = meuDesafio['limite_minutos'] ?? 0;
     int xpGanho = meuDesafio['xp_recompensa'] ?? 0;
     int moedasGanhas = meuDesafio['moedas_recompensa'] ?? 0;
+    String tipo = meuDesafio['tipo'] ?? 'diario';
 
-    List<Map<String, dynamic>> appsOntem = await UsageService.getTopAppsOntem();
+    // Pega a data exata em que o desafio foi aceito
+    Timestamp? ts = meuDesafio['aceito_em'] as Timestamp?;
+    if (ts == null) return;
+    DateTime dataAceite = ts.toDate();
+    DateTime agora = DateTime.now();
 
-    int minutosUsadosOntem = 0;
-    for (var app in appsOntem) {
+    DateTime inicioJanela;
+    DateTime fimJanela;
+
+    // Monta a janela de tempo baseada na data em que ele CLICOU no desafio
+    if (tipo == 'horario') {
+      int horaInicio = meuDesafio['hora_inicio'] ?? 18;
+      int horaFim = meuDesafio['hora_fim'] ?? 23;
+      inicioJanela = DateTime(
+        dataAceite.year,
+        dataAceite.month,
+        dataAceite.day,
+        horaInicio,
+        0,
+      );
+      fimJanela = DateTime(
+        dataAceite.year,
+        dataAceite.month,
+        dataAceite.day,
+        horaFim,
+        59,
+      );
+    } else {
+      inicioJanela = DateTime(
+        dataAceite.year,
+        dataAceite.month,
+        dataAceite.day,
+        0,
+        0,
+      );
+      fimJanela = DateTime(
+        dataAceite.year,
+        dataAceite.month,
+        dataAceite.day,
+        23,
+        59,
+        59,
+      );
+    }
+
+    // BLOQUEIO ANTI-FRAUDE: Se a janela ainda não acabou, impede a conclusão
+    if (agora.isBefore(fimJanela)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('O período do desafio ainda não acabou!'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Consulta apenas o uso DENTRO da janela definida
+    int minutosUsadosNaJanela = 0;
+    List<Map<String, dynamic>> appsJanela = await UsageService.getAppsNoHorario(
+      inicioJanela,
+      fimJanela,
+    );
+
+    for (var app in appsJanela) {
       if (app['nome'].toString().toLowerCase().contains(
         appAlvo.toLowerCase(),
       )) {
-        minutosUsadosOntem = app['minutos'];
+        minutosUsadosNaJanela = app['minutos'];
         break;
       }
     }
 
-    if (minutosUsadosOntem <= limite) {
+    if (minutosUsadosNaJanela <= limite) {
       final FirestoreService firestoreService = FirestoreService();
-      bool subiuDeNivel = await firestoreService.adicionarRecompensa(
-        xpGanho,
-        moedasGanhas,
-      );
+      await firestoreService.adicionarRecompensa(xpGanho, moedasGanhas);
 
       await _db
           .collection('usuarios')
@@ -165,37 +211,18 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
           .doc(desafioId)
           .update({'status': 'coletado'});
 
-      // DISPARA OS CONFETES! 🎉
-      _confettiController.play();
-
-      if (subiuDeNivel) {
-        await _audioPlayer.play(AssetSource('sounds/levelup.mp3'));
-      } else {
+      try {
         await _audioPlayer.play(AssetSource('sounds/sucesso.mp3'));
-      }
+      } catch (_) {}
+      HapticFeedback.mediumImpact();
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(subiuDeNivel ? '🎊 LEVEL UP! 🎊' : '🎉 Sucesso!'),
-            content: Text(
-              subiuDeNivel
-                  ? 'Incrível! Você subiu de nível!\n\n+$xpGanho XP\n+$moedasGanhas Moedas'
-                  : 'Você cumpriu a meta do $appAlvo ontem!\n\n+$xpGanho XP\n+$moedasGanhas Moedas',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Coletar',
-                  style: TextStyle(color: Color(0xFF1D9E75)),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
+      setState(() {
+        _textoXpFlutuante = "+$xpGanho XP";
+        _mostrarXpFlutuante = true;
+      });
+      _xpAnimController.forward(from: 0).then((_) {
+        if (mounted) setState(() => _mostrarXpFlutuante = false);
+      });
     } else {
       await _db
           .collection('usuarios')
@@ -207,7 +234,7 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Falhou! O uso ontem foi de $minutosUsadosOntem min.',
+              'Falhou! O uso na janela foi de $minutosUsadosNaJanela min.',
             ),
             backgroundColor: Colors.red,
           ),
@@ -225,7 +252,10 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
         Scaffold(
           backgroundColor: Colors.grey[50],
           appBar: AppBar(
-            title: const Text('Seus desafios'),
+            title: const Text(
+              'Seus Desafios',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             backgroundColor: Colors.white,
             foregroundColor: const Color(0xFF1D9E75),
             elevation: 0,
@@ -233,29 +263,9 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: _carregarUsoEmTempoReal,
-                tooltip: 'Atualizar progresso',
               ),
             ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(1.0),
-              child: Container(color: Colors.grey[200], height: 1.0),
-            ),
           ),
-
-          // 👇 ADICIONE ESTE BLOCO AQUI 👇
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: _testarConfeteELevelUp,
-            backgroundColor: Colors.purple,
-            icon: const Icon(Icons.auto_awesome, color: Colors.white),
-            label: const Text(
-              'Testar Trailer',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          // 👆 ATE AQUI 👆
           body: _carregandoUso
               ? const Center(
                   child: CircularProgressIndicator(color: Color(0xFF1D9E75)),
@@ -294,13 +304,34 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
 
                           if (meusDesafiosMap.containsKey(id)) {
                             var meuProgresso = meusDesafiosMap[id]!;
-                            if (meuProgresso['status'] == 'aceito' ||
-                                meuProgresso['status'] == 'falhou') {
-                              dadosGlobais['meu_status'] =
-                                  meuProgresso['status'];
-                              dadosGlobais['aceito_em'] =
-                                  meuProgresso['aceito_em'];
+                            String status = meuProgresso['status'] ?? '';
+
+                            bool aceitoHoje = false;
+                            Timestamp? ts =
+                                meuProgresso['aceito_em'] as Timestamp?;
+                            if (ts != null) {
+                              DateTime dataAceite = ts.toDate();
+                              DateTime hoje = DateTime.now();
+                              if (dataAceite.year == hoje.year &&
+                                  dataAceite.month == hoje.month &&
+                                  dataAceite.day == hoje.day) {
+                                aceitoHoje = true;
+                              }
+                            }
+
+                            dadosGlobais['meu_status'] = status;
+                            dadosGlobais['aceito_hoje'] = aceitoHoje;
+                            dadosGlobais['aceito_em'] =
+                                meuProgresso['aceito_em'];
+
+                            if (status == 'aceito') {
                               emAndamento.add(dadosGlobais);
+                            } else if (status == 'falhou' && aceitoHoje) {
+                              emAndamento.add(dadosGlobais);
+                            } else if (status == 'coletado' && aceitoHoje) {
+                              // Oculta completamente
+                            } else {
+                              disponiveis.add(dadosGlobais);
                             }
                           } else {
                             disponiveis.add(dadosGlobais);
@@ -332,19 +363,23 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                     int limite = desafio['limite_minutos'] ?? 1;
                                     bool falhouDb =
                                         desafio['meu_status'] == 'falhou';
+                                    String tipo = desafio['tipo'] ?? 'diario';
+                                    bool aceitoHoje =
+                                        desafio['aceito_hoje'] ?? false;
+                                    int horaFim = desafio['hora_fim'] ?? 23;
 
-                                    bool aceitoHoje = false;
-                                    Timestamp? ts =
-                                        desafio['aceito_em'] as Timestamp?;
-                                    if (ts != null) {
-                                      DateTime dataAceite = ts.toDate();
-                                      DateTime hoje = DateTime.now();
-                                      if (dataAceite.year == hoje.year &&
-                                          dataAceite.month == hoje.month &&
-                                          dataAceite.day == hoje.day) {
-                                        aceitoHoje = true;
+                                    // 👇 LÓGICA DE DESTRAVAR NO MESMO DIA 👇
+                                    bool podeValidarHoje = false;
+                                    if (tipo == 'horario' && aceitoHoje) {
+                                      // Se a hora atual já passou do fim da janela do desafio, pode validar hoje!
+                                      if (DateTime.now().hour > horaFim) {
+                                        podeValidarHoje = true;
                                       }
                                     }
+
+                                    bool bloqueadoPeloTempo =
+                                        aceitoHoje && !podeValidarHoje;
+                                    // 👆 --------------------------------- 👆
 
                                     int minutosUsadosHoje = 0;
                                     for (var app in _usoHoje) {
@@ -363,23 +398,39 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                       porcentagemRisco = 1.0;
 
                                     bool estourouLimiteAgora =
-                                        minutosUsadosHoje > limite;
+                                        minutosUsadosHoje > limite &&
+                                        tipo == 'diario';
                                     bool estaFalhado =
-                                        falhouDb || estourouLimiteAgora;
+                                        falhouDb ||
+                                        (aceitoHoje && estourouLimiteAgora);
 
-                                    if (estourouLimiteAgora && !falhouDb) {
+                                    if (aceitoHoje &&
+                                        estourouLimiteAgora &&
+                                        !falhouDb) {
                                       _reprovarDesafioImediatamente(
                                         desafio['id'],
                                       );
                                     }
 
-                                    Color corBarra = const Color(0xFF1D9E75);
-                                    if (porcentagemRisco >= 0.8)
-                                      corBarra = Colors.orange;
-                                    if (estaFalhado) corBarra = Colors.red;
-
                                     bool botaoBloqueado =
-                                        estaFalhado || aceitoHoje;
+                                        bloqueadoPeloTempo || estaFalhado;
+                                    Color corBarra = estaFalhado
+                                        ? Colors.red
+                                        : (porcentagemRisco >= 0.8
+                                              ? Colors.orange
+                                              : const Color(0xFF1D9E75));
+
+                                    String textoBotao;
+                                    if (estaFalhado) {
+                                      textoBotao =
+                                          'Reprovado (Limite excedido)';
+                                    } else if (bloqueadoPeloTempo) {
+                                      textoBotao = (tipo == 'horario')
+                                          ? 'Em análise (Aguarde passar das ${horaFim}h)'
+                                          : 'Em análise (Volte amanhã)';
+                                    } else {
+                                      textoBotao = 'Validar Recompensa';
+                                    }
 
                                     return Card(
                                       elevation: 0,
@@ -405,7 +456,9 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                                   child: Icon(
                                                     estaFalhado
                                                         ? Icons.block
-                                                        : Icons.timer,
+                                                        : (tipo == 'horario'
+                                                              ? Icons.dark_mode
+                                                              : Icons.timer),
                                                     color: estaFalhado
                                                         ? Colors.red
                                                         : const Color(
@@ -430,17 +483,14 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                                         ),
                                                       ),
                                                       Text(
-                                                        'Limite: $limite min | Usado: $minutosUsadosHoje min',
+                                                        tipo == 'horario'
+                                                            ? 'Janela: ${desafio['hora_inicio']}h até ${desafio['hora_fim']}h | Limite: $limite min'
+                                                            : 'Limite diário: $limite min | Usado: $minutosUsadosHoje min',
                                                         style: TextStyle(
                                                           color: estaFalhado
                                                               ? Colors.red
                                                               : Colors.grey,
                                                           fontSize: 12,
-                                                          fontWeight:
-                                                              estaFalhado
-                                                              ? FontWeight.bold
-                                                              : FontWeight
-                                                                    .normal,
                                                         ),
                                                       ),
                                                     ],
@@ -448,48 +498,23 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                                 ),
                                               ],
                                             ),
-                                            const SizedBox(height: 16),
-                                            ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              child: LinearProgressIndicator(
-                                                value: porcentagemRisco,
-                                                backgroundColor:
-                                                    Colors.grey[200],
-                                                valueColor:
-                                                    AlwaysStoppedAnimation(
-                                                      corBarra,
-                                                    ),
-                                                minHeight: 8,
+                                            if (tipo != 'horario') ...[
+                                              const SizedBox(height: 16),
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: LinearProgressIndicator(
+                                                  value: porcentagemRisco,
+                                                  backgroundColor:
+                                                      Colors.grey[200],
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation(
+                                                        corBarra,
+                                                      ),
+                                                  minHeight: 8,
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Text(
-                                                  estaFalhado
-                                                      ? 'Desafio reprovado.'
-                                                      : 'Em progresso...',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: estaFalhado
-                                                        ? Colors.red
-                                                        : Colors.grey,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  '${(porcentagemRisco * 100).toInt()}%',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: corBarra,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
+                                            ],
                                             const SizedBox(height: 16),
                                             SizedBox(
                                               width: double.infinity,
@@ -506,19 +531,9 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                                   ),
                                                   disabledBackgroundColor:
                                                       Colors.grey[300],
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                  ),
                                                 ),
                                                 child: Text(
-                                                  estaFalhado
-                                                      ? 'Bloqueado (Limite excedido)'
-                                                      : aceitoHoje
-                                                      ? 'Em análise (Volte amanhã)'
-                                                      : 'Concluir Desafio',
+                                                  textoBotao,
                                                   style: TextStyle(
                                                     color: botaoBloqueado
                                                         ? Colors.grey[600]
@@ -552,6 +567,7 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                     style: TextStyle(color: Colors.grey),
                                   ),
                                 ...disponiveis.map((desafio) {
+                                  bool ehHorario = desafio['tipo'] == 'horario';
                                   return Card(
                                     elevation: 0,
                                     margin: const EdgeInsets.only(bottom: 12),
@@ -572,8 +588,10 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                               CircleAvatar(
                                                 backgroundColor:
                                                     Colors.grey[100],
-                                                child: const Icon(
-                                                  Icons.star_border,
+                                                child: Icon(
+                                                  ehHorario
+                                                      ? Icons.nights_stay
+                                                      : Icons.star_border,
                                                   color: Colors.orange,
                                                   size: 20,
                                                 ),
@@ -593,7 +611,9 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                                       ),
                                                     ),
                                                     Text(
-                                                      'Troque o tempo no ${desafio['app_alvo']} por ${desafio['xp_recompensa']} XP',
+                                                      ehHorario
+                                                          ? 'Usar max ${desafio['limite_minutos']} min do ${desafio['app_alvo']} das ${desafio['hora_inicio']}h às ${desafio['hora_fim']}h'
+                                                          : 'Troque tempo no ${desafio['app_alvo']} por ${desafio['xp_recompensa']} XP',
                                                       style: const TextStyle(
                                                         color: Colors.grey,
                                                         fontSize: 12,
@@ -616,10 +636,6 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                                                 foregroundColor: Colors.black87,
                                                 side: BorderSide(
                                                   color: Colors.grey[300]!,
-                                                ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
                                                 ),
                                               ),
                                               child: const Text(
@@ -644,21 +660,37 @@ class _DesafiosScreenState extends State<DesafiosScreen> {
                   },
                 ),
         ),
-        Align(
-          alignment: Alignment.topCenter,
-          child: ConfettiWidget(
-            confettiController: _confettiController,
-            blastDirectionality: BlastDirectionality.explosive,
-            shouldLoop: false,
-            colors: const [
-              Colors.green,
-              Colors.blue,
-              Colors.pink,
-              Colors.orange,
-              Colors.purple,
-            ],
+
+        if (_mostrarXpFlutuante)
+          Align(
+            alignment: Alignment.center,
+            child: AnimatedBuilder(
+              animation: _xpAnimController,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(0, _xpPosition.value),
+                  child: Opacity(
+                    opacity: _xpOpacity.value,
+                    child: Text(
+                      _textoXpFlutuante,
+                      style: const TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF1D9E75),
+                        shadows: [
+                          Shadow(
+                            color: Colors.black26,
+                            blurRadius: 15,
+                            offset: Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }

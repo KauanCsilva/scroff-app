@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:confetti/confetti.dart';
 import 'dart:async';
 import '../services/firestore_service.dart';
 
@@ -13,28 +13,46 @@ class ModoFocoScreen extends StatefulWidget {
   State<ModoFocoScreen> createState() => _ModoFocoScreenState();
 }
 
-class _ModoFocoScreenState extends State<ModoFocoScreen> {
+class _ModoFocoScreenState extends State<ModoFocoScreen>
+    with SingleTickerProviderStateMixin {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
-  int _segundosRestantes = 1500; // 25 minutos
+  final int _tempoTotal = 5; // 25 minutos
+  late int _segundosRestantes;
   Timer? _timer;
   bool _estaRodando = false;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _musicaTocando = false;
-  late ConfettiController _confettiController;
-
-  // LOGICA DO COMPLEMENTO (CAFÉ)
   bool _cafeAtivadoNoFoco = false;
+
+  // 👇 CONTROLADORES DA ANIMAÇÃO DE XP FLUTUANTE 👇
+  late AnimationController _xpAnimController;
+  late Animation<double> _xpOpacity;
+  late Animation<double> _xpPosition;
+  String _textoXpFlutuante = "";
+  bool _mostrarXpFlutuante = false;
 
   @override
   void initState() {
     super.initState();
+    _segundosRestantes = _tempoTotal;
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
-    _confettiController = ConfettiController(
-      duration: const Duration(seconds: 3),
+
+    _xpAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+    _xpOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _xpAnimController,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+      ),
+    );
+    _xpPosition = Tween<double>(begin: 0.0, end: -120.0).animate(
+      CurvedAnimation(parent: _xpAnimController, curve: Curves.easeOutCubic),
     );
   }
 
@@ -42,7 +60,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
   void dispose() {
     _timer?.cancel();
     _audioPlayer.dispose();
-    _confettiController.dispose();
+    _xpAnimController.dispose();
     super.dispose();
   }
 
@@ -52,11 +70,11 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
         await _audioPlayer.pause();
         setState(() => _musicaTocando = false);
       } else {
-        await _audioPlayer.play(AssetSource('sounds/Lofi.mpeg'));
+        await _audioPlayer.play(AssetSource('sounds/Lofi.mp3'));
         setState(() => _musicaTocando = true);
       }
     } catch (e) {
-      debugPrint("Erro ao tocar Lo-Fi: $e");
+      debugPrint("Erro ao tocar Lo-Fi");
     }
   }
 
@@ -71,14 +89,11 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
     } else {
       _estaRodando = true;
 
-      // 👇 LINHA CORRIGIDA: Inicia o som automaticamente ao habilitar o cronômetro 👇
       if (!_musicaTocando) {
         try {
           await _audioPlayer.play(AssetSource('sounds/Lofi.mp3'));
           _musicaTocando = true;
-        } catch (e) {
-          debugPrint("Erro ao iniciar áudio: $e");
-        }
+        } catch (_) {}
       }
 
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -100,7 +115,6 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
     }
   }
 
-  // GASTA O CAFÉ E ATIVA O MULTIPLICADOR
   Future<void> _usarCafe(Map<String, dynamic> consumiveis) async {
     if (_cafeAtivadoNoFoco || (consumiveis['cafe'] ?? 0) <= 0) return;
 
@@ -111,21 +125,19 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
     await _db.collection('usuarios').doc(uid).update({
       'consumiveis': consumiveis,
     });
-    setState(() {
-      _cafeAtivadoNoFoco = true;
-    });
+    setState(() => _cafeAtivadoNoFoco = true);
+    HapticFeedback.lightImpact();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('☕ Café Expresso Ativado! Recompensas duplicadas.'),
+          content: Text('☕ Café Expresso Ativado!'),
           backgroundColor: Colors.amber,
         ),
       );
     }
   }
 
-  // ENVIA OS DADOS REAIS DE RECOMPENSA PRO FIREBASE
   Future<void> _concluirFocoReal() async {
     int xpBase = 150;
     int moedasBase = 3;
@@ -135,44 +147,26 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
       moedasBase *= 2;
     }
 
-    bool subiuDeNivel = await _firestoreService.adicionarRecompensa(
-      xpBase,
-      moedasBase,
-    );
+    await _firestoreService.adicionarRecompensa(xpBase, moedasBase);
 
-    if (subiuDeNivel) {
-      _confettiController.play();
-      try {
-        await AudioPlayer().play(AssetSource('sounds/levelup.mp3'));
-      } catch (_) {}
-    }
+    // SOM E VIBRAÇÃO DE SUCESSO
+    try {
+      await _audioPlayer.play(AssetSource('sounds/sucesso.mp3'));
+    } catch (_) {}
+    HapticFeedback.mediumImpact();
 
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(subiuDeNivel ? '🎊 LEVEL UP! 🎊' : '🎯 Foco Concluído!'),
-          content: Text(
-            'Excelente trabalho!\n\n+$xpBase XP\n+$moedasBase Moedas ${_cafeAtivadoNoFoco ? "(Bônus de Café! ☕)" : ""}',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Excelente!',
-                style: TextStyle(
-                  color: Color(0xFF1D9E75),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    // ATIVA A ANIMAÇÃO DO XP FLUTUANDO
+    setState(() {
+      _textoXpFlutuante = "+$xpBase XP";
+      _mostrarXpFlutuante = true;
+    });
+
+    _xpAnimController.forward(from: 0).then((_) {
+      if (mounted) setState(() => _mostrarXpFlutuante = false);
+    });
 
     setState(() {
-      _segundosRestantes = 1500;
+      _segundosRestantes = _tempoTotal;
       _cafeAtivadoNoFoco = false;
     });
   }
@@ -181,10 +175,11 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
     _timer?.cancel();
     _audioPlayer.stop();
     setState(() {
-      _segundosRestantes = 1500;
+      _segundosRestantes = _tempoTotal;
       _estaRodando = false;
       _musicaTocando = false;
       _cafeAtivadoNoFoco = false;
+      _mostrarXpFlutuante = false;
     });
   }
 
@@ -197,6 +192,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
   @override
   Widget build(BuildContext context) {
     String uid = _auth.currentUser!.uid;
+    double progresso = 1 - (_segundosRestantes / _tempoTotal);
 
     return StreamBuilder<DocumentSnapshot>(
       stream: _db.collection('usuarios').doc(uid).snapshots(),
@@ -244,73 +240,117 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
                         letterSpacing: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 50),
 
-                    Text(
-                      _formatarTempo(),
-                      style: const TextStyle(
-                        fontSize: 80,
-                        fontWeight: FontWeight.w200,
-                        color: Colors.white,
-                      ),
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 300,
+                          height: 300,
+                          child: CircularProgressIndicator(
+                            value: progresso,
+                            strokeWidth: 14,
+                            backgroundColor: Colors.white12,
+                            strokeCap: StrokeCap.round,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              _cafeAtivadoNoFoco
+                                  ? Colors.amber
+                                  : const Color(0xFF1D9E75),
+                            ),
+                          ),
+                        ),
+
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _formatarTempo(),
+                              style: const TextStyle(
+                                fontSize: 70,
+                                fontWeight: FontWeight.w200,
+                                color: Colors.white,
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            GestureDetector(
+                              onTap: _alternarCronometro,
+                              child: Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _estaRodando
+                                      ? Colors.white12
+                                      : (_cafeAtivadoNoFoco
+                                            ? Colors.amber
+                                            : const Color(0xFF1D9E75)),
+                                ),
+                                child: Icon(
+                                  _estaRodando ? Icons.pause : Icons.play_arrow,
+                                  size: 40,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // ANIMAÇÃO DO XP FLUTUANTE ⬆️
+                        if (_mostrarXpFlutuante)
+                          AnimatedBuilder(
+                            animation: _xpAnimController,
+                            builder: (context, child) {
+                              return Transform.translate(
+                                offset: Offset(0, _xpPosition.value),
+                                child: Opacity(
+                                  opacity: _xpOpacity.value,
+                                  child: Text(
+                                    _textoXpFlutuante,
+                                    style: const TextStyle(
+                                      fontSize: 40,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF1D9E75),
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black54,
+                                          blurRadius: 10,
+                                          offset: Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 40),
+
+                    const SizedBox(height: 60),
 
                     if (_estaRodando && !_cafeAtivadoNoFoco)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: OutlinedButton.icon(
-                          icon: const Icon(
-                            Icons.local_cafe,
-                            color: Colors.amber,
-                            size: 18,
-                          ),
-                          label: Text(
-                            'Ativar Café Expresso (Tem: $quantCafes)',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white24),
-                          ),
-                          onPressed: quantCafes > 0
-                              ? () => _usarCafe(consumiveis)
-                              : null,
+                      OutlinedButton.icon(
+                        icon: const Icon(
+                          Icons.local_cafe,
+                          color: Colors.amber,
+                          size: 18,
                         ),
+                        label: Text(
+                          'Ativar Café Expresso (Tem: $quantCafes)',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.white24),
+                        ),
+                        onPressed: quantCafes > 0
+                            ? () => _usarCafe(consumiveis)
+                            : null,
                       ),
-                    if (_cafeAtivadoNoFoco)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 20),
-                        child: Text(
-                          '🚀 Multiplicador de XP 2x Ativo',
-                          style: TextStyle(
-                            color: Colors.amber,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-
-                    GestureDetector(
-                      onTap: _alternarCronometro,
-                      child: Container(
-                        width: 90,
-                        height: 90,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _estaRodando
-                              ? Colors.amber
-                              : const Color(0xFF1D9E75),
-                        ),
-                        child: Icon(
-                          _estaRodando ? Icons.pause : Icons.play_arrow,
-                          size: 40,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
 
                     if (_estaRodando) ...[
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
                       TextButton(
                         onPressed: _cancelarFoco,
                         child: const Text(
@@ -325,23 +365,6 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
                     ],
                   ],
                 ),
-              ),
-            ),
-            // CONFETE DE LEVEL UP — flutua por cima do Scaffold
-            Align(
-              alignment: Alignment.topCenter,
-              child: ConfettiWidget(
-                confettiController: _confettiController,
-                blastDirectionality: BlastDirectionality.explosive,
-                numberOfParticles: 30,
-                gravity: 0.2,
-                emissionFrequency: 0.05,
-                colors: const [
-                  Color(0xFF1D9E75),
-                  Colors.amber,
-                  Colors.white,
-                  Colors.orange,
-                ],
               ),
             ),
           ],

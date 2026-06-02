@@ -215,4 +215,43 @@ class UsageService {
       return [];
     }
   }
+
+  static Future<List<Map<String, dynamic>>> getAppsNoHorario(
+    DateTime inicio,
+    DateTime fim,
+  ) async {
+    try {
+      final dados = await UsageStats.queryUsageStats(inicio, fim);
+      List<Map<String, dynamic>> listaApps = [];
+
+      for (final app in dados) {
+        if (_deveIgnorar(app.packageName)) continue;
+
+        int millis = int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
+        int minutos = millis ~/ 60000;
+
+        if (minutos > 0 && app.packageName != null) {
+          String nomeReal = 'Desconhecido';
+          try {
+            Application? appInfo = await DeviceApps.getApp(app.packageName!);
+            if (appInfo != null) {
+              nomeReal = appInfo.appName;
+            } else {
+              final partes = app.packageName!.split('.');
+              final ultimoNome = partes.last;
+              if (ultimoNome.isNotEmpty) {
+                nomeReal =
+                    ultimoNome.substring(0, 1).toUpperCase() +
+                    ultimoNome.substring(1).toLowerCase();
+              }
+            }
+          } catch (e) {}
+          listaApps.add({'nome': nomeReal, 'minutos': minutos});
+        }
+      }
+      return listaApps;
+    } catch (e) {
+      return [];
+    }
+  }
 }
