@@ -5,8 +5,8 @@ import '../services/desafio_service.dart';
 import '../services/firestore_service.dart';
 import '../services/usage_service.dart';
 import 'modo_foco_screen.dart';
-import '../widgets/mascote_widget.dart';
 import 'configuracoes_screen.dart';
+import '../widgets/perfil_avatar_widget.dart'; // IMPORT DO NOVO ÍCONE PROFISSIONAL
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -60,13 +60,15 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         elevation: 0,
-        title: const Text('Scroff Dashboard'),
+        title: const Text(
+          'Scroff Dashboard',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: const Color(0xFF1D9E75),
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            tooltip: 'Configurações',
             onPressed: () {
               Navigator.push(
                 context,
@@ -76,7 +78,6 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async => await FirebaseAuth.instance.signOut(),
@@ -91,15 +92,20 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
         backgroundColor: const Color(0xFF1D9E75),
+        elevation: 4,
         icon: const Icon(Icons.timer, color: Colors.white),
         label: const Text(
           'Focar',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.1,
+          ),
         ),
       ),
       body: Column(
         children: [
-          // MINI PERFIL REATIVO
+          // MINI PERFIL REATIVO COM DESIGN CLEAN
           StreamBuilder<DocumentSnapshot>(
             stream: _desafioService.dadosUsuario(),
             builder: (context, snapshot) {
@@ -110,8 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
               String nome = user['nome'] ?? 'Usuário';
               int nivel = user['nivel'] ?? 1;
               int xp = user['xp'] ?? 0;
-              // AGORA PEGA DO FIREBASE O ACESSÓRIO
-              String acessorioAtual = user['acessorio_atual'] ?? 'nenhum';
+              String acessorioAtual = user['acessorio_atual'] ?? 'padrao';
 
               int xpNecessario = nivel * 1000;
               double progressoBarra = xp / xpNecessario;
@@ -119,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
               return Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
-                  vertical: 16,
+                  vertical: 20,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -127,13 +132,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: Row(
                   children: [
-                    // O MASCOTE VIVO E SINCRONIZADO!
-                    MascoteWidget(
+                    // NOVO AVATAR DE ÍCONE
+                    PerfilAvatarWidget(
                       minutosDeTela: _minutosHoje,
-                      acessorio: acessorioAtual,
+                      iconeId: acessorioAtual,
                     ),
 
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 20),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,11 +146,36 @@ class _HomeScreenState extends State<HomeScreen> {
                           Text(
                             nome,
                             style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w800,
                               fontSize: 18,
+                              color: Colors.black87,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE1F5EE),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              user['titulo_atual'] == 't_zen'
+                                  ? 'MESTRE ZEN'
+                                  : user['titulo_atual'] == 't_intocavel'
+                                  ? 'INTOCÁVEL'
+                                  : user['titulo_atual'] == 't_maquina'
+                                  ? 'MÁQUINA'
+                                  : 'INICIANTE',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1D9E75),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: LinearProgressIndicator(
@@ -154,15 +184,16 @@ class _HomeScreenState extends State<HomeScreen> {
                               valueColor: const AlwaysStoppedAnimation(
                                 Color(0xFF1D9E75),
                               ),
-                              minHeight: 6,
+                              minHeight: 8,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
                             '$xp / $xpNecessario XP',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -172,18 +203,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     Column(
                       children: [
                         const Text(
-                          'NÍVEL',
+                          'LEVEL',
                           style: TextStyle(
                             fontSize: 10,
                             color: Colors.grey,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
                           ),
                         ),
                         Text(
                           '$nivel',
                           style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
                             color: Color(0xFF1D9E75),
                           ),
                         ),
@@ -213,14 +245,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Column(
                               children: [
                                 const Text(
-                                  'Tempo de Tela Hoje',
+                                  'TEMPO DE TELA HOJE',
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 12,
                                     color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.5,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 12),
                                 Text(
                                   _formatarTempo(_minutosHoje),
                                   style: const TextStyle(
@@ -228,6 +261,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     fontWeight: FontWeight.w800,
                                     color: Color(0xFF1D9E75),
                                     height: 1.0,
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures(),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -241,12 +277,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               'Top Aplicativos',
                               style: TextStyle(
                                 fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black54,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
 
                           _topApps.isEmpty
                               ? const Padding(
@@ -275,14 +311,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                       contentPadding:
                                           const EdgeInsets.symmetric(
                                             horizontal: 24,
-                                            vertical: 0,
+                                            vertical: 4,
                                           ),
                                       leading: Text(
                                         '${index + 1}º',
                                         style: const TextStyle(
                                           fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.black38,
                                         ),
                                       ),
                                       title: Text(
@@ -290,13 +326,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w600,
                                           fontSize: 16,
+                                          color: Colors.black87,
                                         ),
                                       ),
                                       trailing: Text(
                                         _formatarTempo(minsApp),
                                         style: const TextStyle(
                                           fontSize: 16,
-                                          fontWeight: FontWeight.bold,
+                                          fontWeight: FontWeight.w700,
                                           color: Color(0xFF1D9E75),
                                         ),
                                       ),

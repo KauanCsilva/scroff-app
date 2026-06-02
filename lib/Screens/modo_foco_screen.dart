@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart'; // IMPORT DO ÁUDIO
+import 'package:audioplayers/audioplayers.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
+import '../services/firestore_service.dart';
 
 class ModoFocoScreen extends StatefulWidget {
   const ModoFocoScreen({super.key});
@@ -10,36 +13,33 @@ class ModoFocoScreen extends StatefulWidget {
 }
 
 class _ModoFocoScreenState extends State<ModoFocoScreen> {
-  // CONTROLADORES DO CRONÔMETRO
-  int _segundosRestantes = 1500; // 25 minutos padrão (Pomodoro)
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirestoreService _firestoreService = FirestoreService();
+
+  int _segundosRestantes = 1500; // 25 minutos
   Timer? _timer;
   bool _estaRodando = false;
 
-  // CONTROLADORES DA MÚSICA LO-FI 🎵
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _musicaTocando = false;
+
+  // LOGICA DO COMPLEMENTO (CAFÉ)
+  bool _cafeAtivadoNoFoco = false;
 
   @override
   void initState() {
     super.initState();
-    _configurarMusica();
+    _audioPlayer.setReleaseMode(ReleaseMode.loop);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _audioPlayer.dispose(); // Limpa o player da memória ao sair da tela
+    _audioPlayer.dispose();
     super.dispose();
   }
 
-  // CONFIGURA O LOOP INFINITO DA MÚSICA
-  Future<void> _configurarMusica() async {
-    _audioPlayer.setReleaseMode(
-      ReleaseMode.loop,
-    ); // Define para repetir para sempre
-  }
-
-  // FUNÇÃO PARA LIGAR/DESLIGAR A MÚSICA (BOTÃO DE MUDO)
   Future<void> _alternarMusica() async {
     try {
       if (_musicaTocando) {
@@ -50,29 +50,29 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
         setState(() => _musicaTocando = true);
       }
     } catch (e) {
-      debugPrint(
-        "Erro ao carregar o Lo-Fi (verifique se o arquivo está em assets/sounds/Lofi.mpeg): $e",
-      );
+      debugPrint("Erro ao tocar Lo-Fi: $e");
     }
   }
 
-  void _alternarCronometro() {
+  void _alternarCronometro() async {
     if (_estaRodando) {
-      // PAUSAR
       _timer?.cancel();
-      _audioPlayer.pause(); // Pausa a música junto com o cronômetro
+      await _audioPlayer.pause();
       setState(() {
         _estaRodando = false;
         _musicaTocando = false;
       });
     } else {
-      // INICIAR / RETOMAR
       _estaRodando = true;
 
-      // Inicia a música automaticamente ao dar "Play" no foco 🎧
+      // 👇 LINHA CORRIGIDA: Inicia o som automaticamente ao habilitar o cronômetro 👇
       if (!_musicaTocando) {
-        _audioPlayer.play(AssetSource('sounds/Lofi.mpeg'));
-        _musicaTocando = true;
+        try {
+          await _audioPlayer.play(AssetSource('sounds/lofi.mp3'));
+          _musicaTocando = true;
+        } catch (e) {
+          debugPrint("Erro ao iniciar áudio: $e");
+        }
       }
 
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -82,25 +82,96 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
           });
         } else {
           _timer?.cancel();
-          _audioPlayer.stop(); // Para a música quando o tempo acabar
+          _audioPlayer.stop();
           setState(() {
             _estaRodando = false;
             _musicaTocando = false;
           });
-          _mostrarDialogFocoConcluido();
+          _concluirFocoReal();
         }
       });
       setState(() {});
     }
   }
 
+  // GASTA O CAFÉ E ATIVA O MULTIPLICADOR
+  Future<void> _usarCafe(Map<String, dynamic> consumiveis) async {
+    if (_cafeAtivadoNoFoco || (consumiveis['cafe'] ?? 0) <= 0) return;
+
+    String uid = _auth.currentUser!.uid;
+    int qtd = consumiveis['cafe'];
+    consumiveis['cafe'] = qtd - 1;
+
+    await _db.collection('usuarios').doc(uid).update({
+      'consumiveis': consumiveis,
+    });
+    setState(() {
+      _cafeAtivadoNoFoco = true;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('☕ Café Expresso Ativado! Recompensas duplicadas.'),
+          backgroundColor: Colors.amber,
+        ),
+      );
+    }
+  }
+
+  // ENVIA OS DADOS REAIS DE RECOMPENSA PRO FIREBASE
+  Future<void> _concluirFocoReal() async {
+    int xpBase = 150;
+    int moedasBase = 3;
+
+    if (_cafeAtivadoNoFoco) {
+      xpBase *= 2;
+      moedasBase *= 2;
+    }
+
+    bool subiuDeNivel = await _firestoreService.adicionarRecompensa(
+      xpBase,
+      moedasBase,
+    );
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(subiuDeNivel ? '🎊 LEVEL UP! 🎊' : '🎯 Foco Concluído!'),
+          content: Text(
+            'Excelente trabalho!\n\n+$xpBase XP\n+$moedasBase Moedas ${_cafeAtivadoNoFoco ? "(Bônus de Café! ☕)" : ""}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Excelente!',
+                style: TextStyle(
+                  color: Color(0xFF1D9E75),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    setState(() {
+      _segundosRestantes = 1500;
+      _cafeAtivadoNoFoco = false;
+    });
+  }
+
   void _cancelarFoco() {
     _timer?.cancel();
-    _audioPlayer.stop(); // Para a música se desistir
+    _audioPlayer.stop();
     setState(() {
       _segundosRestantes = 1500;
       _estaRodando = false;
       _musicaTocando = false;
+      _cafeAtivadoNoFoco = false;
     });
   }
 
@@ -110,127 +181,138 @@ class _ModoFocoScreenState extends State<ModoFocoScreen> {
     return '${minutos.toString().padLeft(2, '0')}:${segundos.toString().padLeft(2, '0')}';
   }
 
-  void _mostrarDialogFocoConcluido() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('🎯 Foco Concluído!'),
-        content: const Text(
-          'Excelente trabalho! Você completou o seu tempo de foco.\n\n+150 XP\n+30 Moedas',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Excelente!',
-              style: TextStyle(
-                color: Color(0xFF1D9E75),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(
-        0xFF111111,
-      ), // Fundo escuro imersivo para economizar bateria e focar
-      appBar: AppBar(
-        title: const Text('Modo Foco'),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          // 🎧 BOTÃO DINÂMICO DE MUDO NA APPBAR
-          IconButton(
-            icon: Icon(
-              _musicaTocando ? Icons.volume_up : Icons.volume_off,
-              color: Colors.white,
-            ),
-            tooltip: _musicaTocando ? 'Mutar Lo-Fi' : 'Tocar Lo-Fi',
-            onPressed: _estaRodando
-                ? _alternarMusica
-                : null, // Só deixa mexer na música se o foco estiver rodando
-          ),
-        ],
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // EFEITO VISUAL DA VIBE RELAXANTE DO JOGO
-            Text(
-              _estaRodando ? 'Modo foco ativado...' : 'Pronto para começar?',
-              style: const TextStyle(
-                color: Colors.white60,
-                fontSize: 16,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 30),
+    String uid = _auth.currentUser!.uid;
 
-            // O CRONÔMETRO GIGANTE
-            Text(
-              _formatarTempo(),
-              style: const TextStyle(
-                fontSize: 80,
-                fontWeight: FontWeight.w200,
-                color: Colors.white,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-            const SizedBox(height: 60),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _db.collection('usuarios').doc(uid).snapshots(),
+      builder: (context, snapshot) {
+        Map<String, dynamic> consumiveis = {};
+        if (snapshot.hasData && snapshot.data!.exists) {
+          var dados = snapshot.data!.data() as Map<String, dynamic>;
+          consumiveis = dados['consumiveis'] ?? {};
+        }
 
-            // BOTÃO DE PLAY / PAUSE GAMIFICADO
-            GestureDetector(
-              onTap: _alternarCronometro,
-              child: Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _estaRodando ? Colors.amber : const Color(0xFF1D9E75),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _estaRodando
-                          ? Colors.amber.withValues(alpha: 0.4)
-                          : const Color(0xFF1D9E75).withValues(alpha: 0.4),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  _estaRodando ? Icons.pause : Icons.play_arrow,
-                  size: 40,
+        int quantCafes = consumiveis['cafe'] ?? 0;
+
+        return Scaffold(
+          backgroundColor: const Color(0xFF111111),
+          appBar: AppBar(
+            title: const Text('Modo Foco'),
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            actions: [
+              IconButton(
+                icon: Icon(
+                  _musicaTocando ? Icons.volume_up : Icons.volume_off,
                   color: Colors.white,
                 ),
-              ),
-            ),
-
-            // BOTÃO DISCRETO PARA CANCELAR
-            if (_estaRodando) ...[
-              const SizedBox(height: 30),
-              TextButton(
-                onPressed: _cancelarFoco,
-                child: const Text(
-                  'Desistir',
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                onPressed: _estaRodando ? _alternarMusica : null,
               ),
             ],
-          ],
-        ),
-      ),
+          ),
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _estaRodando
+                      ? (_cafeAtivadoNoFoco
+                            ? '☕ Foco Turbinado com Café!'
+                            : '🧘🏽‍♂️ Focando com Lo-Fi...')
+                      : 'Pronto para começar?',
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 16,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 30),
+
+                Text(
+                  _formatarTempo(),
+                  style: const TextStyle(
+                    fontSize: 80,
+                    fontWeight: FontWeight.w200,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                if (_estaRodando && !_cafeAtivadoNoFoco)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: OutlinedButton.icon(
+                      icon: const Icon(
+                        Icons.local_cafe,
+                        color: Colors.amber,
+                        size: 18,
+                      ),
+                      label: Text(
+                        'Ativar Café Expresso (Tem: $quantCafes)',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white24),
+                      ),
+                      onPressed: quantCafes > 0
+                          ? () => _usarCafe(consumiveis)
+                          : null,
+                    ),
+                  ),
+                if (_cafeAtivadoNoFoco)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 20),
+                    child: Text(
+                      '🚀 Multiplicador de XP 2x Ativo',
+                      style: TextStyle(
+                        color: Colors.amber,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+
+                GestureDetector(
+                  onTap: _alternarCronometro,
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _estaRodando
+                          ? Colors.amber
+                          : const Color(0xFF1D9E75),
+                    ),
+                    child: Icon(
+                      _estaRodando ? Icons.pause : Icons.play_arrow,
+                      size: 40,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+
+                if (_estaRodando) ...[
+                  const SizedBox(height: 30),
+                  TextButton(
+                    onPressed: _cancelarFoco,
+                    child: const Text(
+                      'Desistir',
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -53,7 +53,24 @@ class DesafioService {
       String uid = _auth.currentUser?.uid ?? "";
       if (uid.isEmpty) return false;
 
-      // 1. Processa a checagem do tempo de tela do app alvo
+      // 1. Verifica se o desafio já foi coletado (proteção contra double-collect)
+      DocumentReference desafioRef = _db
+          .collection('usuarios')
+          .doc(uid)
+          .collection('meus_desafios')
+          .doc(desafioId);
+
+      DocumentSnapshot desafioDoc = await desafioRef.get();
+      if (desafioDoc.exists) {
+        Map<String, dynamic> dadosDesafio =
+            desafioDoc.data() as Map<String, dynamic>;
+        if (dadosDesafio['status'] == 'coletado') {
+          print("Desafio $desafioId já foi coletado. Ignorando.");
+          return false;
+        }
+      }
+
+      // 2. Processa a checagem do tempo de tela do app alvo
       int minutosUsadosNoApp = 0;
       for (var app in topAppsUsuario) {
         if (app['nome'].toString().toLowerCase() == appAlvo.toLowerCase()) {
@@ -65,15 +82,10 @@ class DesafioService {
       // Se estourou o limite acordado, falhou na missão
       if (minutosUsadosNoApp > limiteMinutos) return false;
 
-      // 2. Registra o sucesso na subcoleção do usuário
-      await _db
-          .collection('usuarios')
-          .doc(uid)
-          .collection('meus_desafios')
-          .doc(desafioId)
-          .set({'status': 'coletado'}, SetOptions(merge: true));
+      // 3. Registra o sucesso na subcoleção do usuário
+      await desafioRef.set({'status': 'coletado'}, SetOptions(merge: true));
 
-      // 3. Lê o perfil atual para calcular o XP acumulado e verificar LEVEL UP
+      // 4. Lê o perfil atual para calcular o XP acumulado e verificar LEVEL UP
       DocumentReference userRef = _db.collection('usuarios').doc(uid);
       DocumentSnapshot userDoc = await userRef.get();
 
@@ -90,20 +102,18 @@ class DesafioService {
 
       int novoXp = xpAtual + xpRecompensa;
       int novoNivel = nivelAtual;
-
-      // Regra matemática: Cada nível custa (Nivel Atual * 1000) de XP para passar
-      int xpNecessario = nivelAtual * 1000;
       List<String> novasBadges = [];
 
-      if (novoXp >= xpNecessario) {
-        novoNivel += 1;
-        novoXp = novoXp - xpNecessario; // Sobra acumula para o próximo nível
-        novasBadges.add(
-          'badge_lvl_$novoNivel',
-        ); // Destrava uma medalha automática
+      // CORREÇÃO: while em vez de if — permite subir múltiplos níveis de uma vez
+      int xpNecessario = novoNivel * 1000;
+      while (novoXp >= xpNecessario) {
+        novoXp -= xpNecessario;
+        novoNivel++;
+        novasBadges.add('badge_lvl_$novoNivel');
+        xpNecessario = novoNivel * 1000;
       }
 
-      // 4. Grava tudo de uma vez de forma consistente no banco de dados
+      // 5. Grava tudo de uma vez de forma consistente no banco de dados
       await userRef.set({
         'xp': novoXp,
         'moedas': moedasAtuais + moedasRecompensa,
