@@ -19,7 +19,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
-  final int _tempoTotal = 5; // 25 minutos
+  final int _tempoTotal = 1500; // 25 minutos
   late int _segundosRestantes;
   Timer? _timer;
   bool _estaRodando = false;

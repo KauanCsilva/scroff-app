@@ -254,4 +254,115 @@ class UsageService {
       return [];
     }
   }
+
+  static Future<List<double>> getUsoPorHora() async {
+    List<double> usoPorHora = List.filled(24, 0.0);
+
+    DateTime agora = DateTime.now();
+    DateTime inicioDoDia = DateTime(agora.year, agora.month, agora.day);
+
+    try {
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(
+        inicioDoDia,
+        agora,
+      );
+      Map<String, int> appsAbertos = {};
+
+      for (var evento in eventos) {
+        String? pacote = evento.packageName;
+
+        if (_deveIgnorar(pacote)) continue;
+
+        String tipo = evento.eventType ?? '';
+        int timestamp = int.tryParse(evento.timeStamp ?? '0') ?? 0;
+
+        if (timestamp == 0) continue;
+
+        if (tipo == '1') {
+          appsAbertos[pacote!] = timestamp;
+        } else if (tipo == '2') {
+          if (appsAbertos.containsKey(pacote)) {
+            int inicio = appsAbertos[pacote!]!;
+            int fim = timestamp;
+
+            double minutosDeUso = (fim - inicio) / 60000.0;
+
+            DateTime horaDoEvento = DateTime.fromMillisecondsSinceEpoch(inicio);
+            int hora = horaDoEvento.hour;
+
+            if (minutosDeUso > 0 && hora >= 0 && hora < 24) {
+              usoPorHora[hora] += minutosDeUso;
+            }
+
+            appsAbertos.remove(pacote);
+          }
+        }
+      }
+    } catch (e) {
+      // Retorna a lista vazia se houver erro
+    }
+
+    return usoPorHora;
+  }
+
+  // NOVO: Retorna TODOS os apps usados hoje, ordenados por tempo (Trazido da sua versão)
+  static Future<List<Map<String, dynamic>>> getTodosApps() async {
+    try {
+      final agora = DateTime.now();
+      final inicio = DateTime(agora.year, agora.month, agora.day);
+      final dados = await UsageStats.queryUsageStats(inicio, agora);
+
+      // 1. Agrupar e somar os milissegundos
+      Map<String, int> tempoPorApp = {};
+
+      for (final app in dados) {
+        if (_deveIgnorar(app.packageName)) continue;
+
+        String pacote = app.packageName!;
+        int millis = int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
+
+        if (tempoPorApp.containsKey(pacote)) {
+          tempoPorApp[pacote] = tempoPorApp[pacote]! + millis;
+        } else {
+          tempoPorApp[pacote] = millis;
+        }
+      }
+
+      List<Map<String, dynamic>> listaApps = [];
+
+      // 2. Processar a lista agrupada
+      for (String pacote in tempoPorApp.keys) {
+        int minutos = tempoPorApp[pacote]! ~/ 60000;
+
+        if (minutos > 0) {
+          String nomeReal = 'Desconhecido';
+
+          try {
+            Application? appInfo = await DeviceApps.getApp(pacote);
+            if (appInfo != null) {
+              nomeReal = appInfo.appName;
+            } else {
+              final partes = pacote.split('.');
+              final ultimoNome = partes.last;
+              if (ultimoNome.isNotEmpty) {
+                nomeReal =
+                    ultimoNome.substring(0, 1).toUpperCase() +
+                    ultimoNome.substring(1).toLowerCase();
+              }
+            }
+          } catch (e) {}
+          listaApps.add({'nome': nomeReal, 'minutos': minutos});
+        }
+      }
+
+      // Ordena do maior para o menor
+      listaApps.sort(
+        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
+      );
+
+      return listaApps;
+    } catch (e) {
+      return [];
+    }
+  }
 }
