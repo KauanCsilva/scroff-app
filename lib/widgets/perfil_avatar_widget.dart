@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/loja_service.dart';
 
 class PerfilAvatarWidget extends StatelessWidget {
   final int minutosDeTela;
@@ -7,40 +8,51 @@ class PerfilAvatarWidget extends StatelessWidget {
   const PerfilAvatarWidget({
     super.key,
     required this.minutosDeTela,
-    this.iconeId = 'padrao',
+    this.iconeId = 'avatar_basicof',
   });
-
-  IconData _obterIcone() {
-    switch (iconeId) {
-      case 'foguete':
-        return Icons.rocket_launch;
-      case 'ninja':
-        return Icons.sports_martial_arts;
-      case 'coroa':
-        return Icons.workspace_premium;
-      case 'diamante':
-        return Icons.diamond;
-      case 'cerebro':
-        return Icons.psychology;
-      case 'meditacao':
-        return Icons.self_improvement;
-      default:
-        return Icons.person;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    Color corAura = const Color(0xFF1D9E75); // Focado
+    Color corAura = const Color(0xFF1D9E75);
     if (minutosDeTela >= 120 && minutosDeTela < 240) corAura = Colors.orange;
     if (minutosDeTela >= 240) corAura = Colors.redAccent;
 
+    ItemLoja? itemAtual;
+    try {
+      itemAtual = LojaService.catalogo.firstWhere((item) => item.id == iconeId);
+    } catch (e) {
+      itemAtual = null;
+    }
+
+    Widget visualAvatar;
+
+    if (itemAtual != null && itemAtual.imagemPath != null && itemAtual.imagemPath!.isNotEmpty) {
+      visualAvatar = ClipRRect(
+        borderRadius: BorderRadius.circular(16), // Arredondamento interno ajustado para o novo tamanho
+        child: Image.asset(
+          itemAtual.imagemPath!,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) =>
+          const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+        ),
+      );
+    } else {
+      visualAvatar = Icon(
+        itemAtual?.icone ?? Icons.person,
+        size: 48, // Ícone de fallback aumentado proporcionalmente
+        color: Colors.black87,
+      );
+    }
+
     return Container(
-      width: 65,
-      height: 65,
+      width: 90,
+      height: 155,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
         color: Colors.white,
+        borderRadius: BorderRadius.circular(20), // Arredondamento externo ajustado
         border: Border.all(color: corAura.withOpacity(0.5), width: 2),
         boxShadow: [
           BoxShadow(
@@ -50,7 +62,7 @@ class PerfilAvatarWidget extends StatelessWidget {
           ),
         ],
       ),
-      child: Icon(_obterIcone(), size: 32, color: Colors.black87),
+      child: visualAvatar,
     );
   }
 }

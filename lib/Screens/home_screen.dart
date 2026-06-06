@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // VIBRAÇÃO
-import 'package:audioplayers/audioplayers.dart'; // ÁUDIO
-import 'package:confetti/confetti.dart'; // CONFETES
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:confetti/confetti.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/desafio_service.dart';
 import '../services/firestore_service.dart';
 import '../services/usage_service.dart';
+import '../services/loja_service.dart';
 import 'modo_foco_screen.dart';
 import 'configuracoes_screen.dart';
 import '../widgets/perfil_avatar_widget.dart';
@@ -28,14 +29,12 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _carregandoUso = true;
   List<double> _usoPorHora = List.filled(24, 0.0);
 
-  // CORES EDITÁVEIS DO GRÁFICO DE DONUT
   final List<Color> _coresDonut = [
-    const Color(0xFF246815), // 1º Lugar
-    const Color(0xFF30931D), // 2º Lugar
-    const Color(0xEA3FCA23), // 3º Lugar
+    const Color(0xFF246815),
+    const Color(0xFF30931D),
+    const Color(0xEA3FCA23),
   ];
 
-  // 👇 SISTEMA GLOBAL DE LEVEL UP 👇
   int _nivelAnterior = 0;
   late ConfettiController _confettiController;
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -83,7 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${horas}h ${minutos}m';
   }
 
-  // Exibe detalhes completos
   void _mostrarDetalhesTodosApps() {
     showModalBottomSheet(
       context: context,
@@ -124,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFF1D9E75),
+                          color: Color(0xFF246815),
                         ),
                       );
                     }
@@ -175,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1D9E75),
+                              color: Color(0xFF246815),
                             ),
                           ),
                         );
@@ -191,9 +189,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // =========================================================================
-  // 🏆 TELA GLOBAL DE LEVEL UP ÉPICA
-  // =========================================================================
   void _dispararLevelUpGlobal(int novoNivel) async {
     _confettiController.play();
     HapticFeedback.heavyImpact();
@@ -212,21 +207,21 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: const BoxDecoration(
           color: Color(0xFF111111),
           borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
-          border: Border(top: BorderSide(color: Color(0xFF1D9E75), width: 4)),
+          border: Border(top: BorderSide(color: Color(0xFF246815), width: 4)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('🎊', style: TextStyle(fontSize: 70)),
+            const Icon(Icons.star, size: 70, color: Colors.amber),
             const SizedBox(height: 10),
             const Text(
               'LEVEL UP!',
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF1D9E75),
+                color: Color(0xFF246815),
                 letterSpacing: 3,
-                shadows: [Shadow(color: Color(0xFF1D9E75), blurRadius: 20)],
+                shadows: [Shadow(color: Color(0xFF246815), blurRadius: 20)],
               ),
             ),
             const SizedBox(height: 15),
@@ -239,10 +234,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
               decoration: BoxDecoration(
-                color: const Color(0xFF1D9E75).withValues(alpha: 0.1),
+                color: const Color(0xFF246815).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFF1D9E75).withValues(alpha: 0.5),
+                  color: const Color(0xFF246815).withValues(alpha: 0.5),
                   width: 2,
                 ),
               ),
@@ -262,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: const TextStyle(
                       fontSize: 40,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF1D9E75),
+                      color: Color(0xFF246815),
                     ),
                   ),
                 ],
@@ -275,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 55,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1D9E75),
+                  backgroundColor: const Color(0xFF246815),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -310,8 +305,8 @@ class _HomeScreenState extends State<HomeScreen> {
           'Scroff Dashboard',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: const Color(0xFF1D9E75),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF246815),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -333,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
           context,
           MaterialPageRoute(builder: (context) => const ModoFocoScreen()),
         ),
-        backgroundColor: const Color(0xFF1D9E75),
+        backgroundColor: const Color(0xFF246815),
         elevation: 4,
         icon: const Icon(Icons.timer, color: Colors.white),
         label: const Text(
@@ -352,27 +347,32 @@ class _HomeScreenState extends State<HomeScreen> {
               StreamBuilder<DocumentSnapshot>(
                 stream: _desafioService.dadosUsuario(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData || !snapshot.data!.exists)
+                  if (!snapshot.hasData || !snapshot.data!.exists) {
                     return const SizedBox();
+                  }
                   var user = snapshot.data!.data() as Map<String, dynamic>;
 
                   String nome = user['nome'] ?? 'Usuário';
                   int nivelAtual = user['nivel'] ?? 1;
                   int xp = user['xp'] ?? 0;
-                  String acessorioAtual = user['acessorio_atual'] ?? 'padrao';
+                  String acessorioAtual = user['acessorio_atual'] ?? 'avatar_basicof';
                   String tituloAtual = user['titulo_atual'] ?? 't_iniciante';
 
                   int xpNecessario = nivelAtual * 1000;
                   double progressoBarra = xp / xpNecessario;
 
-                  // 👇 O GATILHO MÁGICO DO LEVEL UP 👇
                   if (_nivelAnterior > 0 && nivelAtual > _nivelAnterior) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       _dispararLevelUpGlobal(nivelAtual);
                     });
                   }
-                  _nivelAnterior = nivelAtual; // Atualiza a memória
-                  // 👆 ---------------------------- 👆
+                  _nivelAnterior = nivelAtual;
+
+                  String nomeDoTitulo = 'INICIANTE';
+                  try {
+                    var itemTitulo = LojaService.catalogo.firstWhere((item) => item.id == tituloAtual);
+                    nomeDoTitulo = itemTitulo.nome.toUpperCase();
+                  } catch (e) {}
 
                   return Container(
                     padding: const EdgeInsets.symmetric(
@@ -385,7 +385,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         bottom: BorderSide(color: Colors.grey[200]!),
                       ),
                     ),
+                    // REMOVIDO: IntrinsicHeight
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center, // Volta ao padrao seguro
                       children: [
                         PerfilAvatarWidget(
                           minutosDeTela: _minutosHoje,
@@ -394,6 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 20),
                         Expanded(
                           child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
@@ -417,17 +420,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
-                                      tituloAtual == 't_zen'
-                                          ? 'MESTRE ZEN'
-                                          : tituloAtual == 't_intocavel'
-                                          ? 'INTOCÁVEL'
-                                          : tituloAtual == 't_maquina'
-                                          ? 'MÁQUINA'
-                                          : 'INICIANTE',
+                                      nomeDoTitulo,
                                       style: const TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1D9E75),
+                                        color: Color(0xFF246815),
                                       ),
                                     ),
                                   ),
@@ -448,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       value: value,
                                       backgroundColor: Colors.grey[200],
                                       valueColor: const AlwaysStoppedAnimation(
-                                        Color(0xFF1D9E75),
+                                        Color(0xFF246815),
                                       ),
                                       minHeight: 8,
                                     ),
@@ -469,6 +466,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(width: 20),
                         Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Text(
                               'LEVEL',
@@ -484,7 +482,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: const TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w900,
-                                color: Color(0xFF1D9E75),
+                                color: Color(0xFF246815),
                               ),
                             ),
                           ],
@@ -498,318 +496,314 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _carregandoUso
                     ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF1D9E75),
-                        ),
-                      )
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF246815),
+                  ),
+                )
                     : RefreshIndicator(
-                        color: const Color(0xFF1D9E75),
-                        onRefresh: _carregarDadosDeUso,
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
+                  color: const Color(0xFF246815),
+                  onRefresh: _carregarDadosDeUso,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 40,
+                          ),
                           child: Column(
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 40,
-                                ),
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      'TEMPO DE TELA HOJE',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      _formatarTempo(_minutosHoje),
-                                      style: const TextStyle(
-                                        fontSize: 64,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF1D9E75),
-                                        height: 1.0,
-                                        fontFeatures: [
-                                          FontFeature.tabularFigures(),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // GRÁFICO 1 - COLUNAS HORÁRIAS
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: SizedBox(
-                                  height: 150,
-                                  child: BarChart(
-                                    BarChartData(
-                                      alignment: BarChartAlignment.spaceAround,
-                                      maxY: 60,
-                                      gridData: FlGridData(
-                                        show: true,
-                                        drawVerticalLine: false,
-                                        horizontalInterval: 20,
-                                        getDrawingHorizontalLine: (value) {
-                                          return FlLine(
-                                            color: Colors.grey.withOpacity(
-                                              0.15,
-                                            ),
-                                            strokeWidth: 1,
-                                          );
-                                        },
-                                      ),
-                                      borderData: FlBorderData(
-                                        show: true,
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: Colors.grey.withOpacity(0.3),
-                                            width: 1,
-                                          ),
-                                          left: BorderSide.none,
-                                          right: BorderSide.none,
-                                          top: BorderSide.none,
-                                        ),
-                                      ),
-                                      titlesData: FlTitlesData(
-                                        show: true,
-                                        topTitles: const AxisTitles(
-                                          sideTitles: SideTitles(
-                                            showTitles: false,
-                                          ),
-                                        ),
-                                        rightTitles: const AxisTitles(
-                                          sideTitles: SideTitles(
-                                            showTitles: false,
-                                          ),
-                                        ),
-                                        leftTitles: AxisTitles(
-                                          sideTitles: SideTitles(
-                                            showTitles: true,
-                                            reservedSize: 40,
-                                            interval: 20,
-                                            getTitlesWidget: (value, meta) {
-                                              if (value == 0)
-                                                return const SizedBox.shrink();
-                                              return Text(
-                                                '${value.toInt()} m',
-                                                style: const TextStyle(
-                                                  color: Colors.grey,
-                                                  fontSize: 11,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                        bottomTitles: AxisTitles(
-                                          sideTitles: SideTitles(
-                                            showTitles: true,
-                                            getTitlesWidget: (value, meta) {
-                                              int hora = value.toInt();
-                                              if (hora == 0 ||
-                                                  hora == 6 ||
-                                                  hora == 12 ||
-                                                  hora == 18 ||
-                                                  hora == 23) {
-                                                String texto = hora == 23
-                                                    ? '23'
-                                                    : hora.toString();
-                                                return Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        top: 8.0,
-                                                      ),
-                                                  child: Text(
-                                                    texto,
-                                                    style: const TextStyle(
-                                                      color: Colors.grey,
-                                                      fontSize: 11,
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                              return const SizedBox.shrink();
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                      barGroups: List.generate(24, (index) {
-                                        return BarChartGroupData(
-                                          x: index,
-                                          barRods: [
-                                            BarChartRodData(
-                                              toY: _usoPorHora[index],
-                                              color: const Color(0xFF1D9E75),
-                                              width: 5,
-                                              borderRadius:
-                                                  const BorderRadius.vertical(
-                                                    top: Radius.circular(3),
-                                                  ),
-                                            ),
-                                          ],
-                                        );
-                                      }),
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              // GRÁFICO 2 - DONUT CHART
-                              if (_topApps.isNotEmpty) ...[
-                                const SizedBox(height: 40),
-                                Center(
-                                  child: SizedBox(
-                                    height: 140,
-                                    child: PieChart(
-                                      PieChartData(
-                                        sectionsSpace: 3,
-                                        centerSpaceRadius: 45,
-                                        startDegreeOffset: 270,
-                                        sections: List.generate(
-                                          _topApps.length,
-                                          (index) {
-                                            final app = _topApps[index];
-                                            final double minutos =
-                                                (app['minutos'] as int)
-                                                    .toDouble();
-                                            final corSegura =
-                                                _coresDonut[index %
-                                                    _coresDonut.length];
-
-                                            return PieChartSectionData(
-                                              color: corSegura,
-                                              value: minutos,
-                                              title: '${minutos.toInt()}m',
-                                              radius: 18,
-                                              titleStyle: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 40),
-
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                ),
-                                child: const Text(
-                                  'Top Aplicativos',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.black54,
-                                  ),
+                              const Text(
+                                'TEMPO DE TELA HOJE',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
                                 ),
                               ),
                               const SizedBox(height: 12),
+                              Text(
+                                _formatarTempo(_minutosHoje),
+                                style: const TextStyle(
+                                  fontSize: 64,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF246815),
+                                  height: 1.0,
+                                  fontFeatures: [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
-                              // LISTA DOS APPS COM CORES ASSOCIAIS AO DONUT
-                              _topApps.isEmpty
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(24.0),
-                                      child: Text(
-                                        'Nenhum dado registrado ainda.',
-                                        style: TextStyle(color: Colors.grey),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                          ),
+                          child: SizedBox(
+                            height: 150,
+                            child: BarChart(
+                              BarChartData(
+                                alignment: BarChartAlignment.spaceAround,
+                                maxY: 60,
+                                gridData: FlGridData(
+                                  show: true,
+                                  drawVerticalLine: false,
+                                  horizontalInterval: 20,
+                                  getDrawingHorizontalLine: (value) {
+                                    return FlLine(
+                                      color: Colors.grey.withOpacity(
+                                        0.15,
                                       ),
-                                    )
-                                  : ListView.separated(
-                                      shrinkWrap: true,
-                                      physics:
-                                          const NeverScrollableScrollPhysics(),
-                                      itemCount: _topApps.length,
-                                      separatorBuilder: (context, index) =>
-                                          const Divider(
-                                            height: 1,
-                                            indent: 24,
-                                            endIndent: 24,
-                                            color: Color(0xFFEEEEEE),
-                                          ),
-                                      itemBuilder: (context, index) {
-                                        var app = _topApps[index];
-                                        String nomeApp =
-                                            app['nome'] ?? 'Desconhecido';
-                                        int minsApp = app['minutos'] ?? 0;
-                                        final corItem =
-                                            _coresDonut[index %
-                                                _coresDonut.length];
-
-                                        return ListTile(
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 24,
-                                                vertical: 0,
-                                              ),
-                                          leading: Text(
-                                            '${index + 1}º',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: corItem,
-                                            ),
-                                          ),
-                                          title: Text(
-                                            nomeApp,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          trailing: Text(
-                                            _formatarTempo(minsApp),
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: corItem,
-                                            ),
+                                      strokeWidth: 1,
+                                    );
+                                  },
+                                ),
+                                borderData: FlBorderData(
+                                  show: true,
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: Colors.grey.withOpacity(0.3),
+                                      width: 1,
+                                    ),
+                                    left: BorderSide.none,
+                                    right: BorderSide.none,
+                                    top: BorderSide.none,
+                                  ),
+                                ),
+                                titlesData: FlTitlesData(
+                                  show: true,
+                                  topTitles: const AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: false,
+                                    ),
+                                  ),
+                                  rightTitles: const AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: false,
+                                    ),
+                                  ),
+                                  leftTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      reservedSize: 40,
+                                      interval: 20,
+                                      getTitlesWidget: (value, meta) {
+                                        if (value == 0) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return Text(
+                                          '${value.toInt()} m',
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 11,
                                           ),
                                         );
                                       },
                                     ),
-
-                              const SizedBox(height: 16),
-
-                              // BOTÃO DE DETALHES
-                              if (_topApps.isNotEmpty)
-                                Center(
-                                  child: TextButton(
-                                    onPressed: _mostrarDetalhesTodosApps,
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: const Color(0xFFFF5700),
-                                    ),
-                                    child: const Text(
-                                      'Ver Detalhes',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                  ),
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      getTitlesWidget: (value, meta) {
+                                        int hora = value.toInt();
+                                        if (hora == 0 ||
+                                            hora == 6 ||
+                                            hora == 12 ||
+                                            hora == 18 ||
+                                            hora == 23) {
+                                          String texto = hora == 23
+                                              ? '23'
+                                              : hora.toString();
+                                          return Padding(
+                                            padding:
+                                            const EdgeInsets.only(
+                                              top: 8.0,
+                                            ),
+                                            child: Text(
+                                              texto,
+                                              style: const TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
                                     ),
                                   ),
                                 ),
-
-                              const SizedBox(height: 40),
-                            ],
+                                barGroups: List.generate(24, (index) {
+                                  return BarChartGroupData(
+                                    x: index,
+                                    barRods: [
+                                      BarChartRodData(
+                                        toY: _usoPorHora[index],
+                                        color: const Color(0xFF246815),
+                                        width: 5,
+                                        borderRadius:
+                                        const BorderRadius.vertical(
+                                          top: Radius.circular(3),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+
+                        if (_topApps.isNotEmpty) ...[
+                          const SizedBox(height: 40),
+                          Center(
+                            child: SizedBox(
+                              height: 140,
+                              child: PieChart(
+                                PieChartData(
+                                  sectionsSpace: 3,
+                                  centerSpaceRadius: 45,
+                                  startDegreeOffset: 270,
+                                  sections: List.generate(
+                                    _topApps.length,
+                                        (index) {
+                                      final app = _topApps[index];
+                                      final double minutos =
+                                      (app['minutos'] as int)
+                                          .toDouble();
+                                      final corSegura =
+                                      _coresDonut[index %
+                                          _coresDonut.length];
+
+                                      return PieChartSectionData(
+                                        color: corSegura,
+                                        value: minutos,
+                                        title: '${minutos.toInt()}m',
+                                        radius: 18,
+                                        titleStyle: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 40),
+
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                          ),
+                          child: const Text(
+                            'Top Aplicativos',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        _topApps.isEmpty
+                            ? const Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: Text(
+                            'Nenhum dado registrado ainda.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                            : ListView.separated(
+                          shrinkWrap: true,
+                          physics:
+                          const NeverScrollableScrollPhysics(),
+                          itemCount: _topApps.length,
+                          separatorBuilder: (context, index) =>
+                          const Divider(
+                            height: 1,
+                            indent: 24,
+                            endIndent: 24,
+                            color: Color(0xFFEEEEEE),
+                          ),
+                          itemBuilder: (context, index) {
+                            var app = _topApps[index];
+                            String nomeApp =
+                                app['nome'] ?? 'Desconhecido';
+                            int minsApp = app['minutos'] ?? 0;
+                            final corItem =
+                            _coresDonut[index %
+                                _coresDonut.length];
+
+                            return ListTile(
+                              contentPadding:
+                              const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 0,
+                              ),
+                              leading: Text(
+                                '${index + 1}º',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: corItem,
+                                ),
+                              ),
+                              title: Text(
+                                nomeApp,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              trailing: Text(
+                                _formatarTempo(minsApp),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: corItem,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        if (_topApps.isNotEmpty)
+                          Center(
+                            child: TextButton(
+                              onPressed: _mostrarDetalhesTodosApps,
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFFFF5700),
+                              ),
+                              child: const Text(
+                                'Ver Detalhes',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
-          // Confetes explodem por cima de tudo na Home
           Align(
             alignment: Alignment.topCenter,
             child: ConfettiWidget(

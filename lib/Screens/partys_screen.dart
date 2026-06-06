@@ -36,7 +36,7 @@ class _PartysScreenState extends State<PartysScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1D9E75),
+              backgroundColor: const Color(0xFF246815),
             ),
             onPressed: () async {
               if (nomeCtrl.text.isEmpty) {
@@ -66,8 +66,7 @@ class _PartysScreenState extends State<PartysScreen> {
 
   void _entrarGrupo() {
     TextEditingController codigoCtrl = TextEditingController();
-    final AudioPlayer audioPlayerLocal =
-        AudioPlayer(); // Criado localmente para tocar rápido
+    final AudioPlayer audioPlayerLocal = AudioPlayer();
 
     showDialog(
       context: context,
@@ -85,7 +84,7 @@ class _PartysScreenState extends State<PartysScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1D9E75),
+              backgroundColor: const Color(0xFF246815),
             ),
             onPressed: () async {
               if (codigoCtrl.text.isEmpty) return;
@@ -104,20 +103,20 @@ class _PartysScreenState extends State<PartysScreen> {
                   membros.add(uid);
                   await docGrupo.reference.update({'membros': membros});
 
-                  // TOCA O SOM DE ENTRADA NO GRUPO
                   await audioPlayerLocal.play(
                     AssetSource('sounds/User Party.mp3'),
                   );
                 }
                 if (mounted) Navigator.pop(context);
               } else {
-                if (mounted)
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Grupo não encontrado!'),
                       backgroundColor: Colors.red,
                     ),
                   );
+                }
               }
             },
             child: const Text('Entrar', style: TextStyle(color: Colors.white)),
@@ -132,10 +131,15 @@ class _PartysScreenState extends State<PartysScreen> {
     String uid = _auth.currentUser?.uid ?? '';
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Minhas Partys'),
-        backgroundColor: const Color(0xFF1D9E75),
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Parties',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF246815) ,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -157,7 +161,7 @@ class _PartysScreenState extends State<PartysScreen> {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF246815)));
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -176,7 +180,7 @@ class _PartysScreenState extends State<PartysScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('Criar ou Entrar em Grupo'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1D9E75),
+                      backgroundColor: const Color(0xFF246815),
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
@@ -222,28 +226,22 @@ class _PartysScreenState extends State<PartysScreen> {
               List<dynamic> membros = grupoData['membros'] ?? [];
 
               return Card(
-                elevation: 2,
+                elevation: 0,
                 margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: Colors.grey[200]!,
+                  ),
+                ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                  leading: const CircleAvatar(
-                    backgroundColor: Color(0xFFE1F5EE),
-                    child: Icon(Icons.group, color: Color(0xFF1D9E75)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  title: Text(
-                    grupoData['nome'] ?? 'Grupo Sem Nome',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  subtitle: Text(
-                    '${membros.length} membros • Código: ${grupoData['codigo']}',
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -253,6 +251,28 @@ class _PartysScreenState extends State<PartysScreen> {
                       ),
                     );
                   },
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFE1F5EE),
+                    child: Icon(Icons.group, color: Color(0xFF246815), size: 20),
+                  ),
+                  title: Text(
+                    grupoData['nome'] ?? 'Grupo Sem Nome',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Text(
+                      '${membros.length} membros • Código: ${grupoData['codigo']}',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black54),
                 ),
               );
             },
@@ -286,7 +306,7 @@ class _PartysScreenState extends State<PartysScreen> {
             ),
           );
         },
-        backgroundColor: const Color(0xFF1D9E75),
+        backgroundColor: const Color(0xFF246815),
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
