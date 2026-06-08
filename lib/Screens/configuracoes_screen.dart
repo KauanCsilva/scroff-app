@@ -258,7 +258,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Sugestão enviada! Obrigado 🙌'),
-                    backgroundColor: Color(0xFF1D9E75),
+                    backgroundColor: Color(0xFF246815),
                   ),
                 );
               }
@@ -312,7 +312,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Configurações'),
-        backgroundColor: const Color(0xFF1D9E75),
+        backgroundColor: const Color(0xFF246815),
         foregroundColor: Colors.white,
       ),
       body: Column(
@@ -367,7 +367,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1D9E75),
+                                  color: Color(0xFF246815),
                                 ),
                               ),
                             ),
@@ -379,13 +379,13 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                         icon: const Icon(
                           Icons.add_circle_outline,
                           size: 16,
-                          color: Color(0xFF1D9E75),
+                          color: Color(0xFF246815),
                         ),
                         label: const Text(
                           'Sugerir app',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF1D9E75),
+                            color: Color(0xFF246815),
                           ),
                         ),
                       ),
@@ -430,7 +430,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                       child: Center(
                         child: Column(
                           children: [
-                            CircularProgressIndicator(color: Color(0xFF1D9E75)),
+                            CircularProgressIndicator(color: Color(0xFF246815)),
                             SizedBox(height: 12),
                             Text(
                               'Verificando apps instalados...',
@@ -463,11 +463,11 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                               onPressed: _mostrarDialogSugestao,
                               icon: const Icon(
                                 Icons.lightbulb_outline,
-                                color: Color(0xFF1D9E75),
+                                color: Color(0xFF246815),
                               ),
                               label: const Text(
                                 'Sugerir para a equipe',
-                                style: TextStyle(color: Color(0xFF1D9E75)),
+                                style: TextStyle(color: Color(0xFF246815)),
                               ),
                             ),
                           ],
@@ -522,7 +522,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                                     ),
                                   ),
                                   value: ativo,
-                                  activeColor: const Color(0xFF1D9E75),
+                                  activeColor: const Color(0xFF246815),
                                   onChanged: (val) =>
                                       _toggleApp(app['id'], val),
                                 );
@@ -564,7 +564,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
               child: ElevatedButton(
                 onPressed: _salvarConfiguracoes,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1D9E75),
+                  backgroundColor: const Color(0xFF246815),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

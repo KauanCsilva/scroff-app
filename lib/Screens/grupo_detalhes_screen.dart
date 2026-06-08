@@ -141,7 +141,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1D9E75),
+                    backgroundColor: const Color(0xFF246815),
                   ),
                   onPressed: () async {
                     if (tituloCtrl.text.isEmpty) return;
@@ -223,7 +223,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                 onPressed: () => Navigator.pop(context),
                 child: const Text(
                   'Incrível!',
-                  style: TextStyle(color: Color(0xFF1D9E75)),
+                  style: TextStyle(color: Color(0xFF246815)),
                 ),
               ),
             ],
@@ -256,7 +256,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.grupoData['nome'] ?? 'Detalhes do Grupo'),
-        backgroundColor: const Color(0xFF1D9E75),
+        backgroundColor: const Color(0xFF246815),
         foregroundColor: Colors.white,
         actions: [
           // MENU TRÊS PONTINHOS NO TOPO
@@ -294,7 +294,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _mostrarDialogNovoCombinado,
-        backgroundColor: const Color(0xFF1D9E75),
+        backgroundColor: const Color(0xFF246815),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Nova Aposta', style: TextStyle(color: Colors.white)),
       ),
@@ -365,7 +365,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: index == 0
-                                  ? const Color(0xFF1D9E75)
+                                  ? const Color(0xFF246815)
                                   : Colors.black87,
                             ),
                           ),
@@ -483,7 +483,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                     color: status == 'ativo'
-                                        ? const Color(0xFF1D9E75)
+                                        ? const Color(0xFF246815)
                                         : Colors.amber[900],
                                   ),
                                 ),
@@ -546,7 +546,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                                 onPressed: () =>
                                     _finalizarApostaEEncontrarVencedor(doc.id),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1D9E75),
+                                  backgroundColor: const Color(0xFF246815),
                                 ),
                                 child: const Text(
                                   'Coroar Vencedor',

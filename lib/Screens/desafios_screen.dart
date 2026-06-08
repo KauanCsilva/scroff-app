@@ -257,7 +257,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF1D9E75),
+            foregroundColor: const Color(0xFF246815),
             elevation: 0,
             actions: [
               IconButton(
@@ -268,7 +268,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
           ),
           body: _carregandoUso
               ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF1D9E75)),
+                  child: CircularProgressIndicator(color: Color(0xFF246815)),
                 )
               : StreamBuilder<QuerySnapshot>(
                   stream: _db.collection('desafios_globais').snapshots(),
@@ -340,7 +340,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
 
                         return RefreshIndicator(
                           onRefresh: _carregarUsoEmTempoReal,
-                          color: const Color(0xFF1D9E75),
+                          color: const Color(0xFF246815),
                           child: SingleChildScrollView(
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.all(16),
@@ -418,7 +418,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
                                         ? Colors.red
                                         : (porcentagemRisco >= 0.8
                                               ? Colors.orange
-                                              : const Color(0xFF1D9E75));
+                                              : const Color(0xFF246815));
 
                                     String textoBotao;
                                     if (estaFalhado) {
@@ -462,7 +462,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
                                                     color: estaFalhado
                                                         ? Colors.red
                                                         : const Color(
-                                                            0xFF1D9E75,
+                                                            0xFF246815,
                                                           ),
                                                     size: 20,
                                                   ),
@@ -676,7 +676,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
                       style: const TextStyle(
                         fontSize: 40,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF1D9E75),
+                        color: Color(0xFF246815),
                         shadows: [
                           Shadow(
                             color: Colors.black26,
