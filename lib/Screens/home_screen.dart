@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _topApps = [];
   bool _carregandoUso = true;
   List<double> _usoPorHora = List.filled(24, 0.0);
+  bool _mostrarGraficos = true;
 
   final List<Color> _coresDonut = [
     const Color(0xFF246815),
@@ -355,8 +356,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   String nome = user['nome'] ?? 'Usuário';
                   int nivelAtual = user['nivel'] ?? 1;
                   int xp = user['xp'] ?? 0;
-                  String acessorioAtual = user['acessorio_atual'] ?? 'avatar_basicof';
+                  String acessorioAtual =
+                      user['acessorio_atual'] ?? 'avatar_basicof';
                   String tituloAtual = user['titulo_atual'] ?? 't_iniciante';
+                  bool mostrarGraficos = user['mostrar_graficos'] ?? true;
+
+                  // Sincroniza com o state para usar fora do StreamBuilder
+                  if (_mostrarGraficos != mostrarGraficos) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted)
+                        setState(() => _mostrarGraficos = mostrarGraficos);
+                    });
+                  }
 
                   int xpNecessario = nivelAtual * 1000;
                   double progressoBarra = xp / xpNecessario;
@@ -370,7 +381,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   String nomeDoTitulo = 'INICIANTE';
                   try {
-                    var itemTitulo = LojaService.catalogo.firstWhere((item) => item.id == tituloAtual);
+                    var itemTitulo = LojaService.catalogo.firstWhere(
+                      (item) => item.id == tituloAtual,
+                    );
                     nomeDoTitulo = itemTitulo.nome.toUpperCase();
                   } catch (e) {}
 
@@ -387,7 +400,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     // REMOVIDO: IntrinsicHeight
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center, // Volta ao padrao seguro
+                      crossAxisAlignment:
+                          CrossAxisAlignment.center, // Volta ao padrao seguro
                       children: [
                         PerfilAvatarWidget(
                           minutosDeTela: _minutosHoje,
@@ -496,311 +510,315 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: _carregandoUso
                     ? const Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF246815),
-                  ),
-                )
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF246815),
+                        ),
+                      )
                     : RefreshIndicator(
-                  color: const Color(0xFF246815),
-                  onRefresh: _carregarDadosDeUso,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 40,
-                          ),
+                        color: const Color(0xFF246815),
+                        onRefresh: _carregarDadosDeUso,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           child: Column(
                             children: [
-                              const Text(
-                                'TEMPO DE TELA HOJE',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5,
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 40,
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _formatarTempo(_minutosHoje),
-                                style: const TextStyle(
-                                  fontSize: 64,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF246815),
-                                  height: 1.0,
-                                  fontFeatures: [
-                                    FontFeature.tabularFigures(),
+                                child: Column(
+                                  children: [
+                                    const Text(
+                                      'TEMPO DE TELA HOJE',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      _formatarTempo(_minutosHoje),
+                                      style: const TextStyle(
+                                        fontSize: 64,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF246815),
+                                        height: 1.0,
+                                        fontFeatures: [
+                                          FontFeature.tabularFigures(),
+                                        ],
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
 
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                          ),
-                          child: SizedBox(
-                            height: 150,
-                            child: BarChart(
-                              BarChartData(
-                                alignment: BarChartAlignment.spaceAround,
-                                maxY: 60,
-                                gridData: FlGridData(
-                                  show: true,
-                                  drawVerticalLine: false,
-                                  horizontalInterval: 20,
-                                  getDrawingHorizontalLine: (value) {
-                                    return FlLine(
-                                      color: Colors.grey.withOpacity(
-                                        0.15,
+                              if (_mostrarGraficos)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: SizedBox(
+                                    height: 150,
+                                    child: BarChart(
+                                      BarChartData(
+                                        alignment:
+                                            BarChartAlignment.spaceAround,
+                                        maxY: 60,
+                                        gridData: FlGridData(
+                                          show: true,
+                                          drawVerticalLine: false,
+                                          horizontalInterval: 20,
+                                          getDrawingHorizontalLine: (value) {
+                                            return FlLine(
+                                              color: Colors.grey.withOpacity(
+                                                0.15,
+                                              ),
+                                              strokeWidth: 1,
+                                            );
+                                          },
+                                        ),
+                                        borderData: FlBorderData(
+                                          show: true,
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: Colors.grey.withOpacity(
+                                                0.3,
+                                              ),
+                                              width: 1,
+                                            ),
+                                            left: BorderSide.none,
+                                            right: BorderSide.none,
+                                            top: BorderSide.none,
+                                          ),
+                                        ),
+                                        titlesData: FlTitlesData(
+                                          show: true,
+                                          topTitles: const AxisTitles(
+                                            sideTitles: SideTitles(
+                                              showTitles: false,
+                                            ),
+                                          ),
+                                          rightTitles: const AxisTitles(
+                                            sideTitles: SideTitles(
+                                              showTitles: false,
+                                            ),
+                                          ),
+                                          leftTitles: AxisTitles(
+                                            sideTitles: SideTitles(
+                                              showTitles: true,
+                                              reservedSize: 40,
+                                              interval: 20,
+                                              getTitlesWidget: (value, meta) {
+                                                if (value == 0) {
+                                                  return const SizedBox.shrink();
+                                                }
+                                                return Text(
+                                                  '${value.toInt()} m',
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 11,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                          bottomTitles: AxisTitles(
+                                            sideTitles: SideTitles(
+                                              showTitles: true,
+                                              getTitlesWidget: (value, meta) {
+                                                int hora = value.toInt();
+                                                if (hora == 0 ||
+                                                    hora == 6 ||
+                                                    hora == 12 ||
+                                                    hora == 18 ||
+                                                    hora == 23) {
+                                                  String texto = hora == 23
+                                                      ? '23'
+                                                      : hora.toString();
+                                                  return Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          top: 8.0,
+                                                        ),
+                                                    child: Text(
+                                                      texto,
+                                                      style: const TextStyle(
+                                                        color: Colors.grey,
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                                return const SizedBox.shrink();
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        barGroups: List.generate(24, (index) {
+                                          return BarChartGroupData(
+                                            x: index,
+                                            barRods: [
+                                              BarChartRodData(
+                                                toY: _usoPorHora[index],
+                                                color: const Color(0xFF246815),
+                                                width: 5,
+                                                borderRadius:
+                                                    const BorderRadius.vertical(
+                                                      top: Radius.circular(3),
+                                                    ),
+                                              ),
+                                            ],
+                                          );
+                                        }),
                                       ),
-                                      strokeWidth: 1,
-                                    );
-                                  },
-                                ),
-                                borderData: FlBorderData(
-                                  show: true,
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: Colors.grey.withOpacity(0.3),
-                                      width: 1,
                                     ),
-                                    left: BorderSide.none,
-                                    right: BorderSide.none,
-                                    top: BorderSide.none,
                                   ),
                                 ),
-                                titlesData: FlTitlesData(
-                                  show: true,
-                                  topTitles: const AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: false,
+
+                              if (_mostrarGraficos && _topApps.isNotEmpty) ...[
+                                const SizedBox(height: 40),
+                                Center(
+                                  child: SizedBox(
+                                    height: 140,
+                                    child: PieChart(
+                                      PieChartData(
+                                        sectionsSpace: 3,
+                                        centerSpaceRadius: 45,
+                                        startDegreeOffset: 270,
+                                        sections: List.generate(
+                                          _topApps.length,
+                                          (index) {
+                                            final app = _topApps[index];
+                                            final double minutos =
+                                                (app['minutos'] as int)
+                                                    .toDouble();
+                                            final corSegura =
+                                                _coresDonut[index %
+                                                    _coresDonut.length];
+
+                                            return PieChartSectionData(
+                                              color: corSegura,
+                                              value: minutos,
+                                              title: '${minutos.toInt()}m',
+                                              radius: 18,
+                                              titleStyle: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  rightTitles: const AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: false,
-                                    ),
+                                ),
+                              ],
+                              const SizedBox(height: 40),
+
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
+                                child: const Text(
+                                  'Top Aplicativos',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.black54,
                                   ),
-                                  leftTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: true,
-                                      reservedSize: 40,
-                                      interval: 20,
-                                      getTitlesWidget: (value, meta) {
-                                        if (value == 0) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        return Text(
-                                          '${value.toInt()} m',
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              _topApps.isEmpty
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(24.0),
+                                      child: Text(
+                                        'Nenhum dado registrado ainda.',
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      itemCount: _topApps.length,
+                                      separatorBuilder: (context, index) =>
+                                          const Divider(
+                                            height: 1,
+                                            indent: 24,
+                                            endIndent: 24,
+                                            color: Color(0xFFEEEEEE),
+                                          ),
+                                      itemBuilder: (context, index) {
+                                        var app = _topApps[index];
+                                        String nomeApp =
+                                            app['nome'] ?? 'Desconhecido';
+                                        int minsApp = app['minutos'] ?? 0;
+                                        final corItem =
+                                            _coresDonut[index %
+                                                _coresDonut.length];
+
+                                        return ListTile(
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 24,
+                                                vertical: 0,
+                                              ),
+                                          leading: Text(
+                                            '${index + 1}º',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: corItem,
+                                            ),
+                                          ),
+                                          title: Text(
+                                            nomeApp,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          trailing: Text(
+                                            _formatarTempo(minsApp),
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: corItem,
+                                            ),
                                           ),
                                         );
                                       },
                                     ),
-                                  ),
-                                  bottomTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: true,
-                                      getTitlesWidget: (value, meta) {
-                                        int hora = value.toInt();
-                                        if (hora == 0 ||
-                                            hora == 6 ||
-                                            hora == 12 ||
-                                            hora == 18 ||
-                                            hora == 23) {
-                                          String texto = hora == 23
-                                              ? '23'
-                                              : hora.toString();
-                                          return Padding(
-                                            padding:
-                                            const EdgeInsets.only(
-                                              top: 8.0,
-                                            ),
-                                            child: Text(
-                                              texto,
-                                              style: const TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                        return const SizedBox.shrink();
-                                      },
+
+                              const SizedBox(height: 16),
+
+                              if (_topApps.isNotEmpty)
+                                Center(
+                                  child: TextButton(
+                                    onPressed: _mostrarDetalhesTodosApps,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFFFF5700),
+                                    ),
+                                    child: const Text(
+                                      'Ver Detalhes',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ),
-                                barGroups: List.generate(24, (index) {
-                                  return BarChartGroupData(
-                                    x: index,
-                                    barRods: [
-                                      BarChartRodData(
-                                        toY: _usoPorHora[index],
-                                        color: const Color(0xFF246815),
-                                        width: 5,
-                                        borderRadius:
-                                        const BorderRadius.vertical(
-                                          top: Radius.circular(3),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }),
-                              ),
-                            ),
+
+                              const SizedBox(height: 40),
+                            ],
                           ),
                         ),
-
-                        if (_topApps.isNotEmpty) ...[
-                          const SizedBox(height: 40),
-                          Center(
-                            child: SizedBox(
-                              height: 140,
-                              child: PieChart(
-                                PieChartData(
-                                  sectionsSpace: 3,
-                                  centerSpaceRadius: 45,
-                                  startDegreeOffset: 270,
-                                  sections: List.generate(
-                                    _topApps.length,
-                                        (index) {
-                                      final app = _topApps[index];
-                                      final double minutos =
-                                      (app['minutos'] as int)
-                                          .toDouble();
-                                      final corSegura =
-                                      _coresDonut[index %
-                                          _coresDonut.length];
-
-                                      return PieChartSectionData(
-                                        color: corSegura,
-                                        value: minutos,
-                                        title: '${minutos.toInt()}m',
-                                        radius: 18,
-                                        titleStyle: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 40),
-
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                          ),
-                          child: const Text(
-                            'Top Aplicativos',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        _topApps.isEmpty
-                            ? const Padding(
-                          padding: EdgeInsets.all(24.0),
-                          child: Text(
-                            'Nenhum dado registrado ainda.',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                            : ListView.separated(
-                          shrinkWrap: true,
-                          physics:
-                          const NeverScrollableScrollPhysics(),
-                          itemCount: _topApps.length,
-                          separatorBuilder: (context, index) =>
-                          const Divider(
-                            height: 1,
-                            indent: 24,
-                            endIndent: 24,
-                            color: Color(0xFFEEEEEE),
-                          ),
-                          itemBuilder: (context, index) {
-                            var app = _topApps[index];
-                            String nomeApp =
-                                app['nome'] ?? 'Desconhecido';
-                            int minsApp = app['minutos'] ?? 0;
-                            final corItem =
-                            _coresDonut[index %
-                                _coresDonut.length];
-
-                            return ListTile(
-                              contentPadding:
-                              const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 0,
-                              ),
-                              leading: Text(
-                                '${index + 1}º',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: corItem,
-                                ),
-                              ),
-                              title: Text(
-                                nomeApp,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              trailing: Text(
-                                _formatarTempo(minsApp),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: corItem,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        if (_topApps.isNotEmpty)
-                          Center(
-                            child: TextButton(
-                              onPressed: _mostrarDetalhesTodosApps,
-                              style: TextButton.styleFrom(
-                                foregroundColor: const Color(0xFFFF5700),
-                              ),
-                              child: const Text(
-                                'Ver Detalhes',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                        const SizedBox(height: 40),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
               ),
             ],
           ),
