@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:intl/intl.dart';
+import '../services/boss_service.dart';
 
 class GrupoDetalhesScreen extends StatefulWidget {
   final Map<String, dynamic> grupoData;
@@ -17,11 +20,21 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
   late TabController _tabController;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final BossService _bossService = BossService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _atacando = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _audioPlayer.dispose();
+    super.dispose();
   }
 
   String _formatarTempo(int totalMinutos) {
@@ -289,6 +302,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
           tabs: const [
             Tab(icon: Icon(Icons.leaderboard), text: 'Ranking'),
             Tab(icon: Icon(Icons.handshake), text: 'Combinados'),
+            Tab(icon: Icon(Icons.local_fire_department), text: 'Boss'),
           ],
         ),
       ),
@@ -586,7 +600,568 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
               );
             },
           ),
+          // ================= ABA 3: BOSS =================
+          _construirAbaBoss(groupId, uid, isDonoDoGrupo),
         ],
+      ),
+    );
+  }
+
+  // ================= ABA BOSS =================
+  Widget _construirAbaBoss(String groupId, String uid, bool isDono) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _bossService.bossStream(groupId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF1D9E75)),
+          );
+        }
+
+        Map<String, dynamic> grupoData =
+            snapshot.data!.data() as Map<String, dynamic>;
+        Map<String, dynamic>? boss = grupoData['boss'] as Map<String, dynamic>?;
+        int minutosHoje = 0;
+
+        // Busca minutos do usuário atual para calcular dano
+        return FutureBuilder<DocumentSnapshot>(
+          future: _db.collection('usuarios').doc(uid).get(),
+          builder: (context, userSnap) {
+            if (userSnap.hasData && userSnap.data!.exists) {
+              minutosHoje =
+                  (userSnap.data!.data()
+                      as Map<String, dynamic>)['minutos_hoje'] ??
+                  0;
+            }
+
+            // SEM BOSS ATIVO
+            if (boss == null || boss['ativo'] != true) {
+              return _telaInvocarBoss(groupId, isDono, boss);
+            }
+
+            // BOSS ATIVO
+            return _telaBossAtivo(groupId, uid, boss, minutosHoje);
+          },
+        );
+      },
+    );
+  }
+
+  // Tela quando não há boss ativo
+  Widget _telaInvocarBoss(
+    String groupId,
+    bool isDono,
+    Map<String, dynamic>? bossAnterior,
+  ) {
+    bool foiDerrotado = bossAnterior != null && bossAnterior['ativo'] == false;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          if (foiDerrotado) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE1F5EE),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF1D9E75)),
+              ),
+              child: Column(
+                children: [
+                  const Text('🏆', style: TextStyle(fontSize: 48)),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${bossAnterior['emoji']} ${bossAnterior['nome']} foi derrotado!',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Todos ganharam +${bossAnterior['recompensa_xp']} XP e +${bossAnterior['recompensa_moedas']} moedas!',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFF1D9E75),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
+
+          const Text('⚔️', style: TextStyle(fontSize: 64)),
+          const SizedBox(height: 16),
+          const Text(
+            'Nenhum boss ativo',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Invocar um boss cria um desafio coletivo. Cada membro causa dano ficando abaixo de 3h de tela por dia. Derrotem juntos e ganhem recompensas!',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 14, height: 1.5),
+          ),
+          const SizedBox(height: 32),
+
+          if (isDono) ...[
+            const Text(
+              'ESCOLHA O BOSS',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...BossService.catalogo.map((boss) {
+              Color corBoss = Color(boss['cor'] as int);
+              return GestureDetector(
+                onTap: () async {
+                  await _bossService.invocarBoss(groupId, boss);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '${boss['emoji']} ${boss['nome']} foi invocado!',
+                        ),
+                        backgroundColor: corBoss,
+                      ),
+                    );
+                  }
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: corBoss.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: corBoss.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(boss['emoji'], style: const TextStyle(fontSize: 36)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              boss['nome'],
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: corBoss,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              boss['descricao'],
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                _chipInfo(
+                                  '❤️ ${boss['hp_maximo']} HP',
+                                  corBoss,
+                                ),
+                                const SizedBox(width: 8),
+                                _chipInfo(
+                                  '✨ ${boss['recompensa_xp']} XP',
+                                  corBoss,
+                                ),
+                                const SizedBox(width: 8),
+                                _chipInfo(
+                                  '🪙 ${boss['recompensa_moedas']}',
+                                  corBoss,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Apenas o dono da party pode invocar um boss.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Tela com boss ativo
+  Widget _telaBossAtivo(
+    String groupId,
+    String uid,
+    Map<String, dynamic> boss,
+    int minutosHoje,
+  ) {
+    int hpAtual = boss['hp_atual'] ?? 0;
+    int hpMaximo = boss['hp_maximo'] ?? 1;
+    double hpPercent = hpAtual / hpMaximo;
+    Color corBoss = Color(boss['cor'] as int);
+
+    Map<String, dynamic> ataquesDiarios = Map<String, dynamic>.from(
+      boss['ataques_diarios'] ?? {},
+    );
+    String hoje =
+        '${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}';
+    bool jaAtacouHoje = ataquesDiarios[uid] == hoje;
+
+    Map<String, dynamic> danoPorMembro = Map<String, dynamic>.from(
+      boss['dano_por_membro'] ?? {},
+    );
+
+    // Calcula dano potencial de hoje
+    int danoPotencial = minutosHoje < 180
+        ? (180 - minutosHoje).clamp(10, 200)
+        : 10;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          // CARD DO BOSS
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: corBoss.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: corBoss.withOpacity(0.4), width: 2),
+            ),
+            child: Column(
+              children: [
+                Text(boss['emoji'], style: const TextStyle(fontSize: 72)),
+                const SizedBox(height: 12),
+                Text(
+                  boss['nome'],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: corBoss,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  boss['descricao'],
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+
+                // BARRA DE HP
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '❤️ HP',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '$hpAtual / $hpMaximo',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: corBoss,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: hpPercent),
+                    duration: const Duration(milliseconds: 800),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, _) => LinearProgressIndicator(
+                      value: value,
+                      minHeight: 18,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation(corBoss),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // RECOMPENSAS
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _chipInfo(
+                      '✨ ${boss['recompensa_xp']} XP ao vencer',
+                      corBoss,
+                    ),
+                    const SizedBox(width: 8),
+                    _chipInfo('🪙 ${boss['recompensa_moedas']}', corBoss),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // BOTÃO DE ATAQUE
+          if (!jaAtacouHoje)
+            SizedBox(
+              width: double.infinity,
+              height: 58,
+              child: ElevatedButton(
+                onPressed: _atacando
+                    ? null
+                    : () => _executarAtaque(groupId, minutosHoje),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: corBoss,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 4,
+                ),
+                child: _atacando
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            '⚔️  ATACAR',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          Text(
+                            '-$danoPotencial de dano hoje',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Column(
+                children: [
+                  Text(
+                    '✅ Você já atacou hoje!',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Volte amanhã para atacar novamente',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 24),
+
+          // PLACAR DE DANO DOS MEMBROS
+          if (danoPorMembro.isNotEmpty) ...[
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'DANO CAUSADO PELA PARTY',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            FutureBuilder<QuerySnapshot>(
+              future: _db
+                  .collection('usuarios')
+                  .where(
+                    FieldPath.documentId,
+                    whereIn: danoPorMembro.keys.toList(),
+                  )
+                  .get(),
+              builder: (context, snap) {
+                if (!snap.hasData) return const SizedBox();
+                var membrosSnap = snap.data!.docs;
+                membrosSnap.sort((a, b) {
+                  int danoA = danoPorMembro[a.id] ?? 0;
+                  int danoB = danoPorMembro[b.id] ?? 0;
+                  return danoB.compareTo(danoA);
+                });
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: membrosSnap.length,
+                    separatorBuilder: (_, __) =>
+                        Divider(height: 1, color: Colors.grey.shade100),
+                    itemBuilder: (context, i) {
+                      var membro =
+                          membrosSnap[i].data() as Map<String, dynamic>;
+                      int dano = danoPorMembro[membrosSnap[i].id] ?? 0;
+                      return ListTile(
+                        leading: Text(
+                          i == 0 ? '🗡️' : '⚔️',
+                          style: const TextStyle(fontSize: 20),
+                        ),
+                        title: Text(
+                          membro['nome'] ?? 'Usuário',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        trailing: Text(
+                          '$dano dmg',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: corBoss,
+                            fontSize: 15,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executarAtaque(String groupId, int minutosHoje) async {
+    setState(() => _atacando = true);
+
+    final resultado = await _bossService.atacarBoss(
+      grupoId: groupId,
+      minutosHoje: minutosHoje,
+    );
+
+    if (!mounted) return;
+    setState(() => _atacando = false);
+
+    if (resultado['sucesso'] == true) {
+      HapticFeedback.heavyImpact();
+      try {
+        await _audioPlayer.play(AssetSource('sounds/Loja.mp3'));
+      } catch (_) {}
+
+      if (resultado['derrotou'] == true) {
+        // Boss derrotado!
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF111111),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('💥', style: TextStyle(fontSize: 64)),
+                const SizedBox(height: 12),
+                const Text(
+                  'BOSS DERROTADO!',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1D9E75),
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Todos os membros da party receberam as recompensas!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+            actions: [
+              Center(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1D9E75),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'ÉPICO! 🎉',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '⚔️ Você causou ${resultado['dano']} de dano! HP restante: ${resultado['hp_atual']}',
+            ),
+            backgroundColor: Colors.deepOrange,
+          ),
+        );
+      }
+    } else if (resultado['motivo'] == 'ja_atacou') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Você já atacou hoje. Volte amanhã!')),
+      );
+    }
+  }
+
+  Widget _chipInfo(String texto, Color cor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: cor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        texto,
+        style: TextStyle(fontSize: 11, color: cor, fontWeight: FontWeight.bold),
       ),
     );
   }

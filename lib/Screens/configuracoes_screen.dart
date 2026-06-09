@@ -17,6 +17,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   List<dynamic> _whitelistAtuais = [];
   Set<String> _packageNamesInstalados = {};
   bool _carregando = true;
+  bool _mostrarGraficos = true;
 
   // =====================================================
   // LISTA CURADA DE APPS PRODUTIVOS (por categoria)
@@ -168,6 +169,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
         setState(() {
           _nomeController.text = doc.data()?['nome'] ?? '';
           _whitelistAtuais = List<dynamic>.from(doc.data()?['whitelist'] ?? []);
+          _mostrarGraficos = doc.data()?['mostrar_graficos'] ?? true;
           _carregando = false;
         });
       }
@@ -180,6 +182,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       await FirebaseFirestore.instance.collection('usuarios').doc(uid).update({
         'nome': _nomeController.text.trim(),
         'whitelist': _whitelistAtuais,
+        'mostrar_graficos': _mostrarGraficos,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -334,6 +337,35 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Seu Nickname',
                       border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  // SEÇÃO: PREFERÊNCIAS
+                  const Text(
+                    'Preferências',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: SwitchListTile(
+                      title: const Text(
+                        'Mostrar gráficos na home',
+                        style: TextStyle(fontSize: 15),
+                      ),
+                      subtitle: const Text(
+                        'Exibe o gráfico por hora e o donut de apps',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      value: _mostrarGraficos,
+                      activeColor: const Color(0xFF1D9E75),
+                      onChanged: (val) =>
+                          setState(() => _mostrarGraficos = val),
                     ),
                   ),
                   const SizedBox(height: 30),
