@@ -4,9 +4,7 @@ import 'package:device_apps/device_apps.dart';
 class UsageService {
   // 1. FILTRO: Ignora processos do motor do Android, Launchers e o app Scroff
   static bool _deveIgnorar(String? packageName) {
-    if (packageName == null) {
-      return true;
-    }
+    if (packageName == null) return true;
 
     final p = packageName.toLowerCase();
 
@@ -30,7 +28,6 @@ class UsageService {
     return false;
   }
 
-  // Checa permissão silenciosamente
   static Future<bool> temPermissao() async {
     try {
       DateTime agora = DateTime.now();
@@ -46,46 +43,76 @@ class UsageService {
     }
   }
 
-  // Motor central que lê eventos precisos do SO
+  // NOVO MOTOR: Consulta o passado para evitar uso fantasma em viradas de dia e snapshots
   static Future<Map<String, int>> _calcularTempoExatoPorApp(DateTime inicio, DateTime fim) async {
     Map<String, int> tempoPorApp = {};
     Map<String, int> appsAbertos = {};
 
     try {
-      List<EventUsageInfo> eventos = await UsageStats.queryEvents(inicio, fim);
+      // Puxa eventos desde 24h ANTES do início solicitado para achar a verdadeira origem da sessão
+      DateTime queryStart = inicio.subtract(const Duration(days: 1));
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(queryStart, fim);
+
+      int inicioEpoch = inicio.millisecondsSinceEpoch;
+      int fimEpoch = fim.millisecondsSinceEpoch;
 
       for (var evento in eventos) {
-        String? pacote = evento.packageName;
-        if (_deveIgnorar(pacote)) continue;
-
+        String pacote = evento.packageName ?? '';
         String tipo = evento.eventType ?? '';
         int timestamp = int.tryParse(evento.timeStamp ?? '0') ?? 0;
         if (timestamp == 0) continue;
 
-        if (tipo == '1') {
-          appsAbertos[pacote!] = timestamp;
-        } else if (tipo == '2') {
-          int start = appsAbertos.containsKey(pacote)
-              ? appsAbertos[pacote!]!
-              : inicio.millisecondsSinceEpoch;
+        // GATILHO GLOBAL: TELA APAGADA (Evento 16) - Corta o tempo fantasma de bolso
+        if (tipo == '16') {
+          for (var openApp in appsAbertos.keys.toList()) {
+            int start = appsAbertos[openApp]!;
+            if (timestamp > start && !_deveIgnorar(openApp)) {
+              int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+              int fimValido = timestamp > fimEpoch ? fimEpoch : timestamp;
 
-          if (timestamp > start) {
-            int duracao = timestamp - start;
-            tempoPorApp[pacote!] = (tempoPorApp[pacote] ?? 0) + duracao;
+              // Só contabiliza o que ocorreu estritamente dentro da janela de hoje
+              if (fimValido > inicioValido) {
+                int duracao = fimValido - inicioValido;
+                tempoPorApp[openApp] = (tempoPorApp[openApp] ?? 0) + duracao;
+              }
+            }
+            appsAbertos.remove(openApp);
           }
-          appsAbertos.remove(pacote);
+          continue;
+        }
+
+        if (_deveIgnorar(pacote)) continue;
+
+        if (tipo == '1') { // ACTIVITY_RESUMED
+          appsAbertos[pacote] = timestamp;
+        } else if (tipo == '2' || tipo == '23') { // ACTIVITY_PAUSED / STOPPED
+          // Só calcula se temos CERTEZA de que o app estava aberto (ignora os eventos orfaos do OS)
+          if (appsAbertos.containsKey(pacote)) {
+            int start = appsAbertos[pacote]!;
+
+            int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+            int fimValido = timestamp > fimEpoch ? fimEpoch : timestamp;
+
+            if (fimValido > inicioValido) {
+              int duracao = fimValido - inicioValido;
+              tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+            }
+            appsAbertos.remove(pacote);
+          }
         }
       }
 
-      int tempoFim = fim.millisecondsSinceEpoch;
-      int agora = DateTime.now().millisecondsSinceEpoch;
-      int limite = tempoFim < agora ? tempoFim : agora;
+      int agoraEpoch = DateTime.now().millisecondsSinceEpoch;
+      int limite = fimEpoch < agoraEpoch ? fimEpoch : agoraEpoch;
 
       for (var pacote in appsAbertos.keys) {
         int start = appsAbertos[pacote]!;
-        if (limite > start) {
-          int duracao = limite - start;
-          tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+        if (!_deveIgnorar(pacote)) {
+          int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+          if (limite > inicioValido) {
+            int duracao = limite - inicioValido;
+            tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+          }
         }
       }
     } catch (e) {
@@ -256,83 +283,90 @@ class UsageService {
     }
   }
 
-  // ==============================================================================
-  // SOLUÇÃO DO GRÁFICO 24H: FATIADOR DE TEMPO COM GARANTIA DE FUSO HORÁRIO (TIMEZONE)
-  // ==============================================================================
   static Future<List<double>> getUsoPorHora() async {
     List<double> usoPorHora = List.filled(24, 0.0);
     DateTime agora = DateTime.now();
     DateTime inicioDoDia = DateTime(agora.year, agora.month, agora.day);
 
     try {
-      List<EventUsageInfo> eventos = await UsageStats.queryEvents(inicioDoDia, agora);
+      DateTime queryStart = inicioDoDia.subtract(const Duration(days: 1));
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(queryStart, agora);
+
       Map<String, int> appsAbertos = {};
+      int inicioEpoch = inicioDoDia.millisecondsSinceEpoch;
 
       for (var evento in eventos) {
-        String? pacote = evento.packageName;
-        if (_deveIgnorar(pacote)) continue;
-
+        String pacote = evento.packageName ?? '';
         String tipo = evento.eventType ?? '';
         int timestamp = int.tryParse(evento.timeStamp ?? '0') ?? 0;
         if (timestamp == 0) continue;
 
-        if (tipo == '1') {
-          appsAbertos[pacote!] = timestamp;
-        } else if (tipo == '2') {
-          int start = appsAbertos.containsKey(pacote)
-              ? appsAbertos[pacote!]!
-              : inicioDoDia.millisecondsSinceEpoch;
-
-          if (timestamp > start) {
-            _distribuirTempoPorHora(start, timestamp, usoPorHora);
+        if (tipo == '16') {
+          for (var openApp in appsAbertos.keys.toList()) {
+            int start = appsAbertos[openApp]!;
+            if (timestamp > start && !_deveIgnorar(openApp)) {
+              int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+              if (timestamp > inicioValido) {
+                _distribuirTempoPorHora(inicioValido, timestamp, usoPorHora);
+              }
+            }
+            appsAbertos.remove(openApp);
           }
-          appsAbertos.remove(pacote);
+          continue;
+        }
+
+        if (_deveIgnorar(pacote)) continue;
+
+        if (tipo == '1') {
+          appsAbertos[pacote] = timestamp;
+        } else if (tipo == '2' || tipo == '23') {
+          if (appsAbertos.containsKey(pacote)) {
+            int start = appsAbertos[pacote]!;
+            int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+
+            if (timestamp > inicioValido) {
+              _distribuirTempoPorHora(inicioValido, timestamp, usoPorHora);
+            }
+            appsAbertos.remove(pacote);
+          }
         }
       }
 
-      // Finaliza a conta dos apps que ainda estão abertos neste exato segundo
       int limite = agora.millisecondsSinceEpoch;
-      for (var pacote in appsAbertos.keys) {
-        int start = appsAbertos[pacote]!;
-        if (limite > start) {
-          _distribuirTempoPorHora(start, limite, usoPorHora);
+      for (var openApp in appsAbertos.keys) {
+        int start = appsAbertos[openApp]!;
+        if (limite > start && !_deveIgnorar(openApp)) {
+          int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+          if (limite > inicioValido) {
+            _distribuirTempoPorHora(inicioValido, limite, usoPorHora);
+          }
         }
       }
-    } catch (e) {
-      // Ignora falhas silenciosamente para manter a interface viva
-    }
+    } catch (e) {}
 
     return usoPorHora;
   }
 
-  // Função interna que converte o formato cru do Android para a sua Timezone e corta
-  // as horas perfeitamente (Ex: Se usar das 13:50 até 14:10, o gráfico ganha 10m nas 13h e 10m nas 14h)
   static void _distribuirTempoPorHora(int startEpoch, int endEpoch, List<double> usoPorHora) {
-    // 1. FORÇA a interpretação como UTC (padrão de máquina) e só depois converte para a Zona Local.
     DateTime dtStart = DateTime.fromMillisecondsSinceEpoch(startEpoch, isUtc: true).toLocal();
     DateTime dtEnd = DateTime.fromMillisecondsSinceEpoch(endEpoch, isUtc: true).toLocal();
 
     DateTime atual = dtStart;
 
     while (atual.isBefore(dtEnd)) {
-      // Cria a "virada de hora" (ex: se atual = 14:30, proximaHora = 15:00:00)
       DateTime proximaHora = DateTime(atual.year, atual.month, atual.day, atual.hour + 1);
 
       if (proximaHora.isAfter(dtEnd)) {
-        // A sessão acabou antes da hora virar. Joga os minutos no gráfico e encerra.
         double minutos = dtEnd.difference(atual).inMilliseconds / 60000.0;
         if (atual.hour >= 0 && atual.hour < 24 && minutos > 0) {
           usoPorHora[atual.hour] += minutos;
         }
         break;
       } else {
-        // A sessão atravessa a hora cheia!
-        // Salva os minutos só até o relógio "bater a hora"...
         double minutos = proximaHora.difference(atual).inMilliseconds / 60000.0;
         if (atual.hour >= 0 && atual.hour < 24 && minutos > 0) {
           usoPorHora[atual.hour] += minutos;
         }
-        // ...e move o ponteiro para o começo exato da próxima hora.
         atual = proximaHora;
       }
     }
