@@ -37,10 +37,11 @@ class _DashboardPageState extends State<DashboardPage> {
             _abaAtual, // Diz ao Flutter qual ícone deve ficar aceso/marcado
         type: BottomNavigationBarType
             .fixed, // Mantém os 4 botões fixos e visíveis na tela
-        // FRONT-END: Estilização básica (O designer pode alterar essas cores à vontade)
-        selectedItemColor: const Color(0xFF1D9E75), // Cor do ícone ativo
-        unselectedItemColor: const Color(0xFF888780), // Cor dos ícones inativos
-        backgroundColor: Colors.white, // Cor de fundo da barra de abas
+
+        //Front-End
+        selectedItemColor: const Color(0xFFFF5700), // Cor do ícone ativo
+        unselectedItemColor: const Color(0xFFFFFFFF), // Cor dos ícones inativos
+        backgroundColor:  const Color(0xFF246815), // Cor de fundo da barra de abas
         // BACK-END: Função que detecta o clique do usuário e muda o estado da tela
         onTap: (index) {
           setState(() {

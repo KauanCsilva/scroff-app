@@ -33,8 +33,6 @@ class UsageService {
   // Checa permissão silenciosamente
   static Future<bool> temPermissao() async {
     try {
-      // Em vez de perguntar se tem permissão, vamos tentar USAR a permissão.
-      // Se ele conseguir pegar o tempo de tela do último minuto, é porque está liberado!
       DateTime agora = DateTime.now();
       DateTime umMinutoAtras = agora.subtract(const Duration(minutes: 1));
 
@@ -42,46 +40,107 @@ class UsageService {
         umMinutoAtras,
         agora,
       );
-
-      // Se a lista não estiver vazia, o Android deixou ler -> Permissão OK!
       return stats.isNotEmpty;
     } catch (e) {
       return false;
     }
   }
 
-  // Retorna o total de minutos de tela hoje
+  // Motor central que lê eventos precisos do SO
+  static Future<Map<String, int>> _calcularTempoExatoPorApp(DateTime inicio, DateTime fim) async {
+    Map<String, int> tempoPorApp = {};
+    Map<String, int> appsAbertos = {};
+
+    try {
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(inicio, fim);
+
+      for (var evento in eventos) {
+        String? pacote = evento.packageName;
+        if (_deveIgnorar(pacote)) continue;
+
+        String tipo = evento.eventType ?? '';
+        int timestamp = int.tryParse(evento.timeStamp ?? '0') ?? 0;
+        if (timestamp == 0) continue;
+
+        if (tipo == '1') {
+          appsAbertos[pacote!] = timestamp;
+        } else if (tipo == '2') {
+          int start = appsAbertos.containsKey(pacote)
+              ? appsAbertos[pacote!]!
+              : inicio.millisecondsSinceEpoch;
+
+          if (timestamp > start) {
+            int duracao = timestamp - start;
+            tempoPorApp[pacote!] = (tempoPorApp[pacote] ?? 0) + duracao;
+          }
+          appsAbertos.remove(pacote);
+        }
+      }
+
+      int tempoFim = fim.millisecondsSinceEpoch;
+      int agora = DateTime.now().millisecondsSinceEpoch;
+      int limite = tempoFim < agora ? tempoFim : agora;
+
+      for (var pacote in appsAbertos.keys) {
+        int start = appsAbertos[pacote]!;
+        if (limite > start) {
+          int duracao = limite - start;
+          tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+        }
+      }
+    } catch (e) {
+      print("Erro no cálculo de eventos: $e");
+    }
+
+    return tempoPorApp;
+  }
+
+  static Future<String> _buscarNomeApp(String pacote) async {
+    try {
+      Application? appInfo = await DeviceApps.getApp(pacote);
+      if (appInfo != null) {
+        return appInfo.appName;
+      } else {
+        final partes = pacote.split('.');
+        final ultimoNome = partes.last;
+        if (ultimoNome.isNotEmpty) {
+          return ultimoNome.substring(0, 1).toUpperCase() +
+              ultimoNome.substring(1).toLowerCase();
+        }
+      }
+    } catch (e) {}
+    return 'Desconhecido';
+  }
+
   static Future<int> getMinutosHoje() async {
     try {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      final dados = await UsageStats.queryUsageStats(inicio, agora);
-      int totalMillis = 0;
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
 
-      for (final app in dados) {
-        if (_deveIgnorar(app.packageName)) continue;
-        totalMillis += int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
+      int totalMillis = 0;
+      for (var millis in tempoPorApp.values) {
+        totalMillis += millis;
       }
+
       return totalMillis ~/ 60000;
     } catch (e) {
       return 0;
     }
   }
 
-  // Retorna o total de minutos de tela de ontem
   static Future<int> getMinutosOntem() async {
     try {
       final agora = DateTime.now();
       final hojeInicio = DateTime(agora.year, agora.month, agora.day);
       final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
 
-      final dados = await UsageStats.queryUsageStats(ontemInicio, hojeInicio);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(ontemInicio, hojeInicio);
 
       int totalMillis = 0;
-      for (final app in dados) {
-        if (_deveIgnorar(app.packageName)) continue;
-        totalMillis += int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
+      for (var millis in tempoPorApp.values) {
+        totalMillis += millis;
       }
       return totalMillis ~/ 60000;
     } catch (e) {
@@ -89,62 +148,52 @@ class UsageService {
     }
   }
 
-  // Retorna os top 3 apps mais usados hoje com seus NOMES REAIS
   static Future<List<Map<String, dynamic>>> getTopApps() async {
     try {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
-      final dados = await UsageStats.queryUsageStats(inicio, agora);
 
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
       List<Map<String, dynamic>> listaApps = [];
 
-      for (final app in dados) {
-        if (_deveIgnorar(app.packageName)) continue;
-
-        int millis = int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
-        int minutos = millis ~/ 60000;
-
-        if (minutos > 0 && app.packageName != null) {
-          String nomeReal = 'Desconhecido';
-
-          // ==========================================
-          // MÁGICA AQUI: Pede o nome verdadeiro do app
-          // ==========================================
-          try {
-            // Removidos os argumentos extras. O pacote já faz a busca padrão!
-            Application? appInfo = await DeviceApps.getApp(app.packageName!);
-
-            if (appInfo != null) {
-              nomeReal = appInfo.appName;
-            } else {
-              // Fallback de segurança com o bug das letras corrigido
-              final partes = app.packageName!.split('.');
-              final ultimoNome = partes.last;
-              if (ultimoNome.isNotEmpty) {
-                nomeReal =
-                    ultimoNome.substring(0, 1).toUpperCase() +
-                    ultimoNome.substring(1).toLowerCase();
-              }
-            }
-          } catch (e) {
-            // Se der erro na busca, mantém 'Desconhecido'
-          }
+      for (String pacote in tempoPorApp.keys) {
+        int minutos = tempoPorApp[pacote]! ~/ 60000;
+        if (minutos > 0) {
+          String nomeReal = await _buscarNomeApp(pacote);
           listaApps.add({'nome': nomeReal, 'minutos': minutos});
         }
       }
 
-      // Ordena do maior para o menor
-      listaApps.sort(
-        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
-      );
-
+      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
       return listaApps.take(3).toList();
     } catch (e) {
       return [];
     }
   }
 
-  // Retorna todos os apps instalados no dispositivo (excluindo sistema)
+  static Future<List<Map<String, dynamic>>> getTodosApps() async {
+    try {
+      final agora = DateTime.now();
+      final inicio = DateTime(agora.year, agora.month, agora.day);
+
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
+      List<Map<String, dynamic>> listaApps = [];
+
+      for (String pacote in tempoPorApp.keys) {
+        int minutos = tempoPorApp[pacote]! ~/ 60000;
+        if (minutos > 0) {
+          String nomeReal = await _buscarNomeApp(pacote);
+          listaApps.add({'nome': nomeReal, 'minutos': minutos});
+        }
+      }
+
+      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
+      return listaApps;
+    } catch (e) {
+      return [];
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getAppsInstalados() async {
     try {
       List<Application> apps = await DeviceApps.getInstalledApplications(
@@ -158,10 +207,7 @@ class UsageService {
           .map((app) => {'id': app.packageName, 'nome': app.appName})
           .toList();
 
-      lista.sort(
-        (a, b) => (a['nome'] as String).compareTo(b['nome'] as String),
-      );
-
+      lista.sort((a, b) => (a['nome'] as String).compareTo(b['nome'] as String));
       return lista;
     } catch (e) {
       return [];
@@ -174,78 +220,33 @@ class UsageService {
       final hojeInicio = DateTime(agora.year, agora.month, agora.day);
       final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
 
-      final dados = await UsageStats.queryUsageStats(ontemInicio, hojeInicio);
-
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(ontemInicio, hojeInicio);
       List<Map<String, dynamic>> listaApps = [];
 
-      for (final app in dados) {
-        if (_deveIgnorar(app.packageName)) continue;
-
-        int millis = int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
-        int minutos = millis ~/ 60000;
-
-        if (minutos > 0 && app.packageName != null) {
-          String nomeReal = 'Desconhecido';
-
-          try {
-            Application? appInfo = await DeviceApps.getApp(app.packageName!);
-            if (appInfo != null) {
-              nomeReal = appInfo.appName;
-            } else {
-              final partes = app.packageName!.split('.');
-              final ultimoNome = partes.last;
-              if (ultimoNome.isNotEmpty) {
-                nomeReal =
-                    ultimoNome.substring(0, 1).toUpperCase() +
-                    ultimoNome.substring(1).toLowerCase();
-              }
-            }
-          } catch (e) {}
+      for (String pacote in tempoPorApp.keys) {
+        int minutos = tempoPorApp[pacote]! ~/ 60000;
+        if (minutos > 0) {
+          String nomeReal = await _buscarNomeApp(pacote);
           listaApps.add({'nome': nomeReal, 'minutos': minutos});
         }
       }
 
-      listaApps.sort(
-        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
-      );
-      return listaApps
-          .take(10)
-          .toList(); // Traz os 10 mais usados para garantir
+      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
+      return listaApps.take(10).toList();
     } catch (e) {
       return [];
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getAppsNoHorario(
-    DateTime inicio,
-    DateTime fim,
-  ) async {
+  static Future<List<Map<String, dynamic>>> getAppsNoHorario(DateTime inicio, DateTime fim) async {
     try {
-      final dados = await UsageStats.queryUsageStats(inicio, fim);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, fim);
       List<Map<String, dynamic>> listaApps = [];
 
-      for (final app in dados) {
-        if (_deveIgnorar(app.packageName)) continue;
-
-        int millis = int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
-        int minutos = millis ~/ 60000;
-
-        if (minutos > 0 && app.packageName != null) {
-          String nomeReal = 'Desconhecido';
-          try {
-            Application? appInfo = await DeviceApps.getApp(app.packageName!);
-            if (appInfo != null) {
-              nomeReal = appInfo.appName;
-            } else {
-              final partes = app.packageName!.split('.');
-              final ultimoNome = partes.last;
-              if (ultimoNome.isNotEmpty) {
-                nomeReal =
-                    ultimoNome.substring(0, 1).toUpperCase() +
-                    ultimoNome.substring(1).toLowerCase();
-              }
-            }
-          } catch (e) {}
+      for (String pacote in tempoPorApp.keys) {
+        int minutos = tempoPorApp[pacote]! ~/ 60000;
+        if (minutos > 0) {
+          String nomeReal = await _buscarNomeApp(pacote);
           listaApps.add({'nome': nomeReal, 'minutos': minutos});
         }
       }
@@ -255,114 +256,85 @@ class UsageService {
     }
   }
 
+  // ==============================================================================
+  // SOLUÇÃO DO GRÁFICO 24H: FATIADOR DE TEMPO COM GARANTIA DE FUSO HORÁRIO (TIMEZONE)
+  // ==============================================================================
   static Future<List<double>> getUsoPorHora() async {
     List<double> usoPorHora = List.filled(24, 0.0);
-
     DateTime agora = DateTime.now();
     DateTime inicioDoDia = DateTime(agora.year, agora.month, agora.day);
 
     try {
-      List<EventUsageInfo> eventos = await UsageStats.queryEvents(
-        inicioDoDia,
-        agora,
-      );
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(inicioDoDia, agora);
       Map<String, int> appsAbertos = {};
 
       for (var evento in eventos) {
         String? pacote = evento.packageName;
-
         if (_deveIgnorar(pacote)) continue;
 
         String tipo = evento.eventType ?? '';
         int timestamp = int.tryParse(evento.timeStamp ?? '0') ?? 0;
-
         if (timestamp == 0) continue;
 
         if (tipo == '1') {
           appsAbertos[pacote!] = timestamp;
         } else if (tipo == '2') {
-          if (appsAbertos.containsKey(pacote)) {
-            int inicio = appsAbertos[pacote!]!;
-            int fim = timestamp;
+          int start = appsAbertos.containsKey(pacote)
+              ? appsAbertos[pacote!]!
+              : inicioDoDia.millisecondsSinceEpoch;
 
-            double minutosDeUso = (fim - inicio) / 60000.0;
-
-            DateTime horaDoEvento = DateTime.fromMillisecondsSinceEpoch(inicio);
-            int hora = horaDoEvento.hour;
-
-            if (minutosDeUso > 0 && hora >= 0 && hora < 24) {
-              usoPorHora[hora] += minutosDeUso;
-            }
-
-            appsAbertos.remove(pacote);
+          if (timestamp > start) {
+            _distribuirTempoPorHora(start, timestamp, usoPorHora);
           }
+          appsAbertos.remove(pacote);
+        }
+      }
+
+      // Finaliza a conta dos apps que ainda estão abertos neste exato segundo
+      int limite = agora.millisecondsSinceEpoch;
+      for (var pacote in appsAbertos.keys) {
+        int start = appsAbertos[pacote]!;
+        if (limite > start) {
+          _distribuirTempoPorHora(start, limite, usoPorHora);
         }
       }
     } catch (e) {
-      // Retorna a lista vazia se houver erro
+      // Ignora falhas silenciosamente para manter a interface viva
     }
 
     return usoPorHora;
   }
 
-  // NOVO: Retorna TODOS os apps usados hoje, ordenados por tempo (Trazido da sua versão)
-  static Future<List<Map<String, dynamic>>> getTodosApps() async {
-    try {
-      final agora = DateTime.now();
-      final inicio = DateTime(agora.year, agora.month, agora.day);
-      final dados = await UsageStats.queryUsageStats(inicio, agora);
+  // Função interna que converte o formato cru do Android para a sua Timezone e corta
+  // as horas perfeitamente (Ex: Se usar das 13:50 até 14:10, o gráfico ganha 10m nas 13h e 10m nas 14h)
+  static void _distribuirTempoPorHora(int startEpoch, int endEpoch, List<double> usoPorHora) {
+    // 1. FORÇA a interpretação como UTC (padrão de máquina) e só depois converte para a Zona Local.
+    DateTime dtStart = DateTime.fromMillisecondsSinceEpoch(startEpoch, isUtc: true).toLocal();
+    DateTime dtEnd = DateTime.fromMillisecondsSinceEpoch(endEpoch, isUtc: true).toLocal();
 
-      // 1. Agrupar e somar os milissegundos
-      Map<String, int> tempoPorApp = {};
+    DateTime atual = dtStart;
 
-      for (final app in dados) {
-        if (_deveIgnorar(app.packageName)) continue;
+    while (atual.isBefore(dtEnd)) {
+      // Cria a "virada de hora" (ex: se atual = 14:30, proximaHora = 15:00:00)
+      DateTime proximaHora = DateTime(atual.year, atual.month, atual.day, atual.hour + 1);
 
-        String pacote = app.packageName!;
-        int millis = int.tryParse(app.totalTimeInForeground ?? '0') ?? 0;
-
-        if (tempoPorApp.containsKey(pacote)) {
-          tempoPorApp[pacote] = tempoPorApp[pacote]! + millis;
-        } else {
-          tempoPorApp[pacote] = millis;
+      if (proximaHora.isAfter(dtEnd)) {
+        // A sessão acabou antes da hora virar. Joga os minutos no gráfico e encerra.
+        double minutos = dtEnd.difference(atual).inMilliseconds / 60000.0;
+        if (atual.hour >= 0 && atual.hour < 24 && minutos > 0) {
+          usoPorHora[atual.hour] += minutos;
         }
-      }
-
-      List<Map<String, dynamic>> listaApps = [];
-
-      // 2. Processar a lista agrupada
-      for (String pacote in tempoPorApp.keys) {
-        int minutos = tempoPorApp[pacote]! ~/ 60000;
-
-        if (minutos > 0) {
-          String nomeReal = 'Desconhecido';
-
-          try {
-            Application? appInfo = await DeviceApps.getApp(pacote);
-            if (appInfo != null) {
-              nomeReal = appInfo.appName;
-            } else {
-              final partes = pacote.split('.');
-              final ultimoNome = partes.last;
-              if (ultimoNome.isNotEmpty) {
-                nomeReal =
-                    ultimoNome.substring(0, 1).toUpperCase() +
-                    ultimoNome.substring(1).toLowerCase();
-              }
-            }
-          } catch (e) {}
-          listaApps.add({'nome': nomeReal, 'minutos': minutos});
+        break;
+      } else {
+        // A sessão atravessa a hora cheia!
+        // Salva os minutos só até o relógio "bater a hora"...
+        double minutos = proximaHora.difference(atual).inMilliseconds / 60000.0;
+        if (atual.hour >= 0 && atual.hour < 24 && minutos > 0) {
+          usoPorHora[atual.hour] += minutos;
         }
+        // ...e move o ponteiro para o começo exato da próxima hora.
+        atual = proximaHora;
       }
-
-      // Ordena do maior para o menor
-      listaApps.sort(
-        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
-      );
-
-      return listaApps;
-    } catch (e) {
-      return [];
     }
   }
 }
