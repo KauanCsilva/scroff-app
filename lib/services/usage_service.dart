@@ -4,9 +4,7 @@ import 'package:device_apps/device_apps.dart';
 class UsageService {
   // 1. FILTRO: Ignora processos do motor do Android, Launchers e o app Scroff
   static bool _deveIgnorar(String? packageName) {
-    if (packageName == null) {
-      return true;
-    }
+    if (packageName == null) return true;
 
     final p = packageName.toLowerCase();
 
@@ -30,7 +28,6 @@ class UsageService {
     return false;
   }
 
-  // Checa permissão silenciosamente
   static Future<bool> temPermissao() async {
     try {
       DateTime agora = DateTime.now();
@@ -48,6 +45,7 @@ class UsageService {
 
   // =========================================================================
   // 🛠️ MOTOR CORRIGIDO: Calcula o tempo exato e ignora bugs do Android
+  // NOVO MOTOR: Consulta o passado para evitar uso fantasma em viradas de dia e snapshots
   // =========================================================================
   static Future<Map<String, int>> _calcularTempoExatoPorApp(
     DateTime inicio,
@@ -55,57 +53,72 @@ class UsageService {
   ) async {
     Map<String, int> tempoPorApp = {};
     Map<String, int> appsAbertos = {};
-    Set<String> appsJaVistos = {}; // Filtro Anti-Eventos Fantasmas
 
     try {
-      List<EventUsageInfo> eventos = await UsageStats.queryEvents(inicio, fim);
+      // Puxa eventos desde 24h ANTES do início solicitado para achar a verdadeira origem da sessão
+      DateTime queryStart = inicio.subtract(const Duration(days: 1));
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(queryStart, fim);
+
+      int inicioEpoch = inicio.millisecondsSinceEpoch;
+      int fimEpoch = fim.millisecondsSinceEpoch;
 
       for (var evento in eventos) {
-        String? pacote = evento.packageName;
-        if (_deveIgnorar(pacote)) continue;
-
+        String pacote = evento.packageName ?? '';
         String tipo = evento.eventType ?? '';
         int timestamp = int.tryParse(evento.timeStamp ?? '0') ?? 0;
         if (timestamp == 0) continue;
 
-        if (tipo == '1') {
-          // App abriu (foi para o primeiro plano)
-          appsAbertos[pacote!] = timestamp;
-          appsJaVistos.add(pacote);
-        } else if (tipo == '2') {
-          // App fechou (foi para o segundo plano)
-          if (appsAbertos.containsKey(pacote)) {
-            // Fluxo Normal: Sabemos quando abriu, calculamos a diferença
-            int start = appsAbertos[pacote!]!;
-            int duracao = timestamp - start;
-            if (duracao > 0)
-              tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
-            appsAbertos.remove(pacote);
-          } else {
-            // Fluxo de Exceção: O app fechou, mas não vimos ele abrir.
-            // Isso acontece se ele estava aberto desde antes da meia-noite.
-            // MAS só fazemos isso se for a PRIMEIRA vez que vemos ele hoje.
-            if (!appsJaVistos.contains(pacote!)) {
-              int start = inicio.millisecondsSinceEpoch;
-              int duracao = timestamp - start;
-              if (duracao > 0)
-                tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
-              appsJaVistos.add(pacote);
+        // GATILHO GLOBAL: TELA APAGADA (Evento 16) - Corta o tempo fantasma de bolso
+        if (tipo == '16') {
+          for (var openApp in appsAbertos.keys.toList()) {
+            int start = appsAbertos[openApp]!;
+            if (timestamp > start && !_deveIgnorar(openApp)) {
+              int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+              int fimValido = timestamp > fimEpoch ? fimEpoch : timestamp;
+
+              // Só contabiliza o que ocorreu estritamente dentro da janela de hoje
+              if (fimValido > inicioValido) {
+                int duracao = fimValido - inicioValido;
+                tempoPorApp[openApp] = (tempoPorApp[openApp] ?? 0) + duracao;
+              }
             }
+            appsAbertos.remove(openApp);
+          }
+          continue;
+        }
+
+        if (_deveIgnorar(pacote)) continue;
+
+        if (tipo == '1') { // ACTIVITY_RESUMED
+          appsAbertos[pacote] = timestamp;
+        } else if (tipo == '2' || tipo == '23') { // ACTIVITY_PAUSED / STOPPED
+          // Só calcula se temos CERTEZA de que o app estava aberto (ignora os eventos orfaos do OS)
+          if (appsAbertos.containsKey(pacote)) {
+            int start = appsAbertos[pacote]!;
+
+            int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+            int fimValido = timestamp > fimEpoch ? fimEpoch : timestamp;
+
+            if (fimValido > inicioValido) {
+              int duracao = fimValido - inicioValido;
+              tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+            }
+            appsAbertos.remove(pacote);
           }
         }
       }
 
-      // Finaliza a conta dos apps que ainda estão abertos neste exato segundo
-      int tempoFim = fim.millisecondsSinceEpoch;
-      int agora = DateTime.now().millisecondsSinceEpoch;
-      int limite = tempoFim < agora ? tempoFim : agora;
+      int agoraEpoch = DateTime.now().millisecondsSinceEpoch;
+      int limite = fimEpoch < agoraEpoch ? fimEpoch : agoraEpoch;
 
       for (var pacote in appsAbertos.keys) {
         int start = appsAbertos[pacote]!;
-        if (limite > start) {
-          int duracao = limite - start;
-          tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+        if (!_deveIgnorar(pacote)) {
+          int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+          if (limite > inicioValido) {
+            int duracao = limite - inicioValido;
+            tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+          }
         }
       }
     } catch (e) {
@@ -137,10 +150,7 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
-        inicio,
-        agora,
-      );
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
 
       int totalMillis = 0;
       for (var millis in tempoPorApp.values) {
@@ -159,10 +169,7 @@ class UsageService {
       final hojeInicio = DateTime(agora.year, agora.month, agora.day);
       final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
-        ontemInicio,
-        hojeInicio,
-      );
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(ontemInicio, hojeInicio);
 
       int totalMillis = 0;
       for (var millis in tempoPorApp.values) {
@@ -179,10 +186,7 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
-        inicio,
-        agora,
-      );
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -193,9 +197,7 @@ class UsageService {
         }
       }
 
-      listaApps.sort(
-        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
-      );
+      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
       return listaApps.take(3).toList();
     } catch (e) {
       return [];
@@ -207,10 +209,7 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
-        inicio,
-        agora,
-      );
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -221,9 +220,7 @@ class UsageService {
         }
       }
 
-      listaApps.sort(
-        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
-      );
+      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
       return listaApps;
     } catch (e) {
       return [];
@@ -243,9 +240,7 @@ class UsageService {
           .map((app) => {'id': app.packageName, 'nome': app.appName})
           .toList();
 
-      lista.sort(
-        (a, b) => (a['nome'] as String).compareTo(b['nome'] as String),
-      );
+      lista.sort((a, b) => (a['nome'] as String).compareTo(b['nome'] as String));
       return lista;
     } catch (e) {
       return [];
@@ -258,10 +253,7 @@ class UsageService {
       final hojeInicio = DateTime(agora.year, agora.month, agora.day);
       final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
-        ontemInicio,
-        hojeInicio,
-      );
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(ontemInicio, hojeInicio);
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -272,24 +264,16 @@ class UsageService {
         }
       }
 
-      listaApps.sort(
-        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
-      );
+      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
       return listaApps.take(10).toList();
     } catch (e) {
       return [];
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getAppsNoHorario(
-    DateTime inicio,
-    DateTime fim,
-  ) async {
+  static Future<List<Map<String, dynamic>>> getAppsNoHorario(DateTime inicio, DateTime fim) async {
     try {
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
-        inicio,
-        fim,
-      );
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, fim);
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -311,39 +295,57 @@ class UsageService {
     DateTime inicioDoDia = DateTime(agora.year, agora.month, agora.day);
 
     try {
-      List<EventUsageInfo> eventos = await UsageStats.queryEvents(
-        inicioDoDia,
-        agora,
-      );
+      DateTime queryStart = inicioDoDia.subtract(const Duration(days: 1));
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(queryStart, agora);
+
       Map<String, int> appsAbertos = {};
+      int inicioEpoch = inicioDoDia.millisecondsSinceEpoch;
 
       for (var evento in eventos) {
-        String? pacote = evento.packageName;
-        if (_deveIgnorar(pacote)) continue;
-
+        String pacote = evento.packageName ?? '';
         String tipo = evento.eventType ?? '';
         int timestamp = int.tryParse(evento.timeStamp ?? '0') ?? 0;
         if (timestamp == 0) continue;
 
-        if (tipo == '1') {
-          appsAbertos[pacote!] = timestamp;
-        } else if (tipo == '2') {
-          int start = appsAbertos.containsKey(pacote)
-              ? appsAbertos[pacote!]!
-              : inicioDoDia.millisecondsSinceEpoch;
-
-          if (timestamp > start) {
-            _distribuirTempoPorHora(start, timestamp, usoPorHora);
+        if (tipo == '16') {
+          for (var openApp in appsAbertos.keys.toList()) {
+            int start = appsAbertos[openApp]!;
+            if (timestamp > start && !_deveIgnorar(openApp)) {
+              int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+              if (timestamp > inicioValido) {
+                _distribuirTempoPorHora(inicioValido, timestamp, usoPorHora);
+              }
+            }
+            appsAbertos.remove(openApp);
           }
-          appsAbertos.remove(pacote);
+          continue;
+        }
+
+        if (_deveIgnorar(pacote)) continue;
+
+        if (tipo == '1') {
+          appsAbertos[pacote] = timestamp;
+        } else if (tipo == '2' || tipo == '23') {
+          if (appsAbertos.containsKey(pacote)) {
+            int start = appsAbertos[pacote]!;
+            int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+
+            if (timestamp > inicioValido) {
+              _distribuirTempoPorHora(inicioValido, timestamp, usoPorHora);
+            }
+            appsAbertos.remove(pacote);
+          }
         }
       }
 
       int limite = agora.millisecondsSinceEpoch;
-      for (var pacote in appsAbertos.keys) {
-        int start = appsAbertos[pacote]!;
-        if (limite > start) {
-          _distribuirTempoPorHora(start, limite, usoPorHora);
+      for (var openApp in appsAbertos.keys) {
+        int start = appsAbertos[openApp]!;
+        if (limite > start && !_deveIgnorar(openApp)) {
+          int inicioValido = start < inicioEpoch ? inicioEpoch : start;
+          if (limite > inicioValido) {
+            _distribuirTempoPorHora(inicioValido, limite, usoPorHora);
+          }
         }
       }
     } catch (e) {}
@@ -351,29 +353,14 @@ class UsageService {
     return usoPorHora;
   }
 
-  static void _distribuirTempoPorHora(
-    int startEpoch,
-    int endEpoch,
-    List<double> usoPorHora,
-  ) {
-    DateTime dtStart = DateTime.fromMillisecondsSinceEpoch(
-      startEpoch,
-      isUtc: true,
-    ).toLocal();
-    DateTime dtEnd = DateTime.fromMillisecondsSinceEpoch(
-      endEpoch,
-      isUtc: true,
-    ).toLocal();
+  static void _distribuirTempoPorHora(int startEpoch, int endEpoch, List<double> usoPorHora) {
+    DateTime dtStart = DateTime.fromMillisecondsSinceEpoch(startEpoch, isUtc: true).toLocal();
+    DateTime dtEnd = DateTime.fromMillisecondsSinceEpoch(endEpoch, isUtc: true).toLocal();
 
     DateTime atual = dtStart;
 
     while (atual.isBefore(dtEnd)) {
-      DateTime proximaHora = DateTime(
-        atual.year,
-        atual.month,
-        atual.day,
-        atual.hour + 1,
-      );
+      DateTime proximaHora = DateTime(atual.year, atual.month, atual.day, atual.hour + 1);
 
       if (proximaHora.isAfter(dtEnd)) {
         double minutos = dtEnd.difference(atual).inMilliseconds / 60000.0;

@@ -6,8 +6,9 @@ class ItemLoja {
   final String nome;
   final int preco;
   final int lvl;
-  final String? imagemPath; // Agora é opcional (pode ser nulo)
-  final IconData? icone;    // Novo campo para itens baseados em ícone
+  final String? imagemPath;
+  final IconData? icone;
+  final String? descricao; // NOVO: Instrucoes de como desbloquear
 
   ItemLoja({
     required this.id,
@@ -17,6 +18,7 @@ class ItemLoja {
     required this.lvl,
     this.imagemPath,
     this.icone,
+    this.descricao,
   });
 }
 
@@ -92,6 +94,35 @@ class LojaService {
       lvl: 2,
       imagemPath: 'assets/avatars/brasil_m.png',
     ),
+
+    // ==========================================
+    // Categoria: POWER-UPS (tipo: 'consumivel')
+    // ==========================================
+    ItemLoja(
+      id: 'cafe',
+      tipo: 'consumivel',
+      nome: 'Café Expresso',
+      preco: 50,
+      lvl: 1,
+      icone: Icons.local_cafe,
+    ),
+    ItemLoja(
+      id: 'escudo',
+      tipo: 'consumivel',
+      nome: 'Escudo Protetor',
+      preco: 150,
+      lvl: 5,
+      icone: Icons.shield,
+    ),
+    ItemLoja(
+      id: 'ticket',
+      tipo: 'consumivel',
+      nome: 'Ticket VIP',
+      preco: 500,
+      lvl: 10,
+      icone: Icons.confirmation_num,
+    ),
+
     // ==========================================
     // Categoria: TÍTULOS (tipo: 'titulo')
     // ==========================================
@@ -127,32 +158,28 @@ class LojaService {
       lvl: 15,
       icone: Icons.precision_manufacturing,
     ),
+
     // ==========================================
-    // Categoria: POWER-UPS (tipo: 'consumivel')
+    // Categoria: SELOS / BADGES (tipo: 'selo')
     // ==========================================
     ItemLoja(
-      id: 'cafe',
-      tipo: 'consumivel',
-      nome: 'Café Expresso',
-      preco: 50,
+      id: 'badge_tiktok_week', // O ID que sua logica de desafios vai salvar no banco
+      tipo: 'selo',
+      nome: 'Semana Sem tiktok',
+      preco: 0,
       lvl: 1,
-      icone: Icons.local_cafe,
+      imagemPath: 'assets/badges/tiktok_week.png', // Coloque a imagem na sua pasta de assets
+      icone: Icons.wb_sunny, // Fallback caso a imagem de erro
+      descricao: 'Fique 7 dias consecutivos usando o TikTok por menos de 1 hora.',
     ),
     ItemLoja(
-      id: 'escudo',
-      tipo: 'consumivel',
-      nome: 'Escudo Protetor',
-      preco: 150,
-      lvl: 5,
-      icone: Icons.shield,
-    ),
-    ItemLoja(
-      id: 'ticket',
-      tipo: 'consumivel',
-      nome: 'Ticket VIP',
-      preco: 500,
-      lvl: 10,
-      icone: Icons.confirmation_num,
+      id: 'badge_lvl_10',
+      tipo: 'selo',
+      nome: 'Nivel 10 Alcançado',
+      preco: 0,
+      lvl: 1,
+      icone: Icons.star,
+      descricao: 'Atingido automaticamente ao chegar no nível 10 de disciplina.',
     ),
   ];
 
