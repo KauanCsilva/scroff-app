@@ -160,26 +160,27 @@ class LojaService {
     ),
 
     // ==========================================
-    // Categoria: SELOS / BADGES (tipo: 'selo')
+    // Categoria: SELOS (tipo: 'selo')
     // ==========================================
     ItemLoja(
-      id: 'badge_tiktok_week', // O ID que sua logica de desafios vai salvar no banco
+      id: 'badge_primeiro_desafio',
       tipo: 'selo',
-      nome: 'Semana Sem tiktok',
+      nome: 'O inicio',
       preco: 0,
       lvl: 1,
-      imagemPath: 'assets/badges/tiktok_week.png', // Coloque a imagem na sua pasta de assets
-      icone: Icons.wb_sunny, // Fallback caso a imagem de erro
-      descricao: 'Fique 7 dias consecutivos usando o TikTok por menos de 1 hora.',
+      imagemPath: 'assets/badges/primeiro_desafio.png', // Certifique-se de ter esta imagem
+      icone: Icons.emoji_events,
+      descricao: 'Conclua seu primeiro desafio.',
     ),
     ItemLoja(
-      id: 'badge_lvl_10',
+      id: 'badge_7_dias',
       tipo: 'selo',
-      nome: 'Nivel 10 Alcançado',
+      nome: 'Samurai',
       preco: 0,
       lvl: 1,
-      icone: Icons.star,
-      descricao: 'Atingido automaticamente ao chegar no nível 10 de disciplina.',
+      imagemPath: 'assets/badges/samurai.png',
+      icone: Icons.local_fire_department_sharp,
+      descricao: 'Abra o Scroff 7 dias consecutivos.',
     ),
   ];
 
