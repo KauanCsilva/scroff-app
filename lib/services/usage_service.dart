@@ -43,8 +43,14 @@ class UsageService {
     }
   }
 
+  // =========================================================================
+  // 🛠️ MOTOR CORRIGIDO: Calcula o tempo exato e ignora bugs do Android
   // NOVO MOTOR: Consulta o passado para evitar uso fantasma em viradas de dia e snapshots
-  static Future<Map<String, int>> _calcularTempoExatoPorApp(DateTime inicio, DateTime fim) async {
+  // =========================================================================
+  static Future<Map<String, int>> _calcularTempoExatoPorApp(
+    DateTime inicio,
+    DateTime fim,
+  ) async {
     Map<String, int> tempoPorApp = {};
     Map<String, int> appsAbertos = {};
 
