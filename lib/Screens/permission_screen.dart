@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:usage_stats/usage_stats.dart';
 
 class PermissionScreen extends StatelessWidget {
-  // Removi o callback daqui para simplificar e evitar o conflito
   const PermissionScreen({super.key});
 
   @override
@@ -22,7 +21,7 @@ class PermissionScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Ative o Scroff na tela que vai abrir para podermos contar seu tempo.',
+              'Ative o Scroff na tela que vai abrir para podermos contar seu tempo de tela.',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
@@ -30,16 +29,37 @@ class PermissionScreen extends StatelessWidget {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
-                  // Apenas abre a configuração.
-                  // O Android cuida do resto e o AppRoot detecta quando você voltar.
-                  UsageStats.grantUsagePermission();
+                // 👇 Transformamos em async/await para forçar a ponte com o Android
+                onPressed: () async {
+                  try {
+                    await UsageStats.grantUsagePermission();
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Erro ao abrir. Vá manualmente em: Configurações > Acesso Especial > Uso de Dados',
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1D9E75),
+                  backgroundColor: const Color(0xFF246815),
                   foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text('ABRIR CONFIGURAÇÕES'),
+                child: const Text(
+                  'ABRIR CONFIGURAÇÕES',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
               ),
             ),
           ],

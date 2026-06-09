@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'boss_service.dart';
 
 class DesafioService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -121,6 +122,18 @@ class DesafioService {
         if (novasBadges.isNotEmpty)
           'badges': FieldValue.arrayUnion(novasBadges),
       }, SetOptions(merge: true));
+
+      // Aplica dano bônus ao boss do grupo (se houver boss ativo)
+      try {
+        BossService bossService = BossService();
+        String grupoId = await bossService.getGrupoIdDoUsuario(uid);
+        if (grupoId.isNotEmpty) {
+          await bossService.danoPorDesafio(grupoId: grupoId, uid: uid);
+        }
+      } catch (e) {
+        // Não bloqueia a conclusão do desafio se o boss falhar
+        print("Boss dano por desafio: $e");
+      }
 
       return true;
     } catch (e) {

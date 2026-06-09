@@ -43,8 +43,14 @@ class UsageService {
     }
   }
 
+  // =========================================================================
+  // 🛠️ MOTOR CORRIGIDO: Calcula o tempo exato e ignora bugs do Android
   // NOVO MOTOR: Consulta o passado para evitar uso fantasma em viradas de dia e snapshots
-  static Future<Map<String, int>> _calcularTempoExatoPorApp(DateTime inicio, DateTime fim) async {
+  // =========================================================================
+  static Future<Map<String, int>> _calcularTempoExatoPorApp(
+    DateTime inicio,
+    DateTime fim,
+  ) async {
     Map<String, int> tempoPorApp = {};
     Map<String, int> appsAbertos = {};
 
@@ -102,6 +108,7 @@ class UsageService {
         }
       }
 
+      // Finaliza a conta dos apps que ainda estão abertos neste exato segundo
       int agoraEpoch = DateTime.now().millisecondsSinceEpoch;
       int limite = fimEpoch < agoraEpoch ? fimEpoch : agoraEpoch;
 
@@ -144,7 +151,10 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        inicio,
+        agora,
+      );
 
       int totalMillis = 0;
       for (var millis in tempoPorApp.values) {
@@ -163,7 +173,10 @@ class UsageService {
       final hojeInicio = DateTime(agora.year, agora.month, agora.day);
       final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(ontemInicio, hojeInicio);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        ontemInicio,
+        hojeInicio,
+      );
 
       int totalMillis = 0;
       for (var millis in tempoPorApp.values) {
@@ -180,7 +193,10 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        inicio,
+        agora,
+      );
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -191,7 +207,9 @@ class UsageService {
         }
       }
 
-      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
+      listaApps.sort(
+        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
+      );
       return listaApps.take(3).toList();
     } catch (e) {
       return [];
@@ -203,7 +221,10 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        inicio,
+        agora,
+      );
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -214,7 +235,9 @@ class UsageService {
         }
       }
 
-      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
+      listaApps.sort(
+        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
+      );
       return listaApps;
     } catch (e) {
       return [];
@@ -234,7 +257,9 @@ class UsageService {
           .map((app) => {'id': app.packageName, 'nome': app.appName})
           .toList();
 
-      lista.sort((a, b) => (a['nome'] as String).compareTo(b['nome'] as String));
+      lista.sort(
+        (a, b) => (a['nome'] as String).compareTo(b['nome'] as String),
+      );
       return lista;
     } catch (e) {
       return [];
@@ -247,7 +272,10 @@ class UsageService {
       final hojeInicio = DateTime(agora.year, agora.month, agora.day);
       final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(ontemInicio, hojeInicio);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        ontemInicio,
+        hojeInicio,
+      );
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -258,16 +286,24 @@ class UsageService {
         }
       }
 
-      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
+      listaApps.sort(
+        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
+      );
       return listaApps.take(10).toList();
     } catch (e) {
       return [];
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getAppsNoHorario(DateTime inicio, DateTime fim) async {
+  static Future<List<Map<String, dynamic>>> getAppsNoHorario(
+    DateTime inicio,
+    DateTime fim,
+  ) async {
     try {
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, fim);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        inicio,
+        fim,
+      );
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -290,7 +326,10 @@ class UsageService {
 
     try {
       DateTime queryStart = inicioDoDia.subtract(const Duration(days: 1));
-      List<EventUsageInfo> eventos = await UsageStats.queryEvents(queryStart, agora);
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(
+        queryStart,
+        agora,
+      );
 
       Map<String, int> appsAbertos = {};
       int inicioEpoch = inicioDoDia.millisecondsSinceEpoch;
@@ -347,14 +386,29 @@ class UsageService {
     return usoPorHora;
   }
 
-  static void _distribuirTempoPorHora(int startEpoch, int endEpoch, List<double> usoPorHora) {
-    DateTime dtStart = DateTime.fromMillisecondsSinceEpoch(startEpoch, isUtc: true).toLocal();
-    DateTime dtEnd = DateTime.fromMillisecondsSinceEpoch(endEpoch, isUtc: true).toLocal();
+  static void _distribuirTempoPorHora(
+    int startEpoch,
+    int endEpoch,
+    List<double> usoPorHora,
+  ) {
+    DateTime dtStart = DateTime.fromMillisecondsSinceEpoch(
+      startEpoch,
+      isUtc: true,
+    ).toLocal();
+    DateTime dtEnd = DateTime.fromMillisecondsSinceEpoch(
+      endEpoch,
+      isUtc: true,
+    ).toLocal();
 
     DateTime atual = dtStart;
 
     while (atual.isBefore(dtEnd)) {
-      DateTime proximaHora = DateTime(atual.year, atual.month, atual.day, atual.hour + 1);
+      DateTime proximaHora = DateTime(
+        atual.year,
+        atual.month,
+        atual.day,
+        atual.hour + 1,
+      );
 
       if (proximaHora.isAfter(dtEnd)) {
         double minutos = dtEnd.difference(atual).inMilliseconds / 60000.0;
