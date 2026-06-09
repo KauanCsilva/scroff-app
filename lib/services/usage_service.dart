@@ -46,10 +46,16 @@ class UsageService {
     }
   }
 
-  // Motor central que lê eventos precisos do SO
-  static Future<Map<String, int>> _calcularTempoExatoPorApp(DateTime inicio, DateTime fim) async {
+  // =========================================================================
+  // 🛠️ MOTOR CORRIGIDO: Calcula o tempo exato e ignora bugs do Android
+  // =========================================================================
+  static Future<Map<String, int>> _calcularTempoExatoPorApp(
+    DateTime inicio,
+    DateTime fim,
+  ) async {
     Map<String, int> tempoPorApp = {};
     Map<String, int> appsAbertos = {};
+    Set<String> appsJaVistos = {}; // Filtro Anti-Eventos Fantasmas
 
     try {
       List<EventUsageInfo> eventos = await UsageStats.queryEvents(inicio, fim);
@@ -63,20 +69,34 @@ class UsageService {
         if (timestamp == 0) continue;
 
         if (tipo == '1') {
+          // App abriu (foi para o primeiro plano)
           appsAbertos[pacote!] = timestamp;
+          appsJaVistos.add(pacote);
         } else if (tipo == '2') {
-          int start = appsAbertos.containsKey(pacote)
-              ? appsAbertos[pacote!]!
-              : inicio.millisecondsSinceEpoch;
-
-          if (timestamp > start) {
+          // App fechou (foi para o segundo plano)
+          if (appsAbertos.containsKey(pacote)) {
+            // Fluxo Normal: Sabemos quando abriu, calculamos a diferença
+            int start = appsAbertos[pacote!]!;
             int duracao = timestamp - start;
-            tempoPorApp[pacote!] = (tempoPorApp[pacote] ?? 0) + duracao;
+            if (duracao > 0)
+              tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+            appsAbertos.remove(pacote);
+          } else {
+            // Fluxo de Exceção: O app fechou, mas não vimos ele abrir.
+            // Isso acontece se ele estava aberto desde antes da meia-noite.
+            // MAS só fazemos isso se for a PRIMEIRA vez que vemos ele hoje.
+            if (!appsJaVistos.contains(pacote!)) {
+              int start = inicio.millisecondsSinceEpoch;
+              int duracao = timestamp - start;
+              if (duracao > 0)
+                tempoPorApp[pacote] = (tempoPorApp[pacote] ?? 0) + duracao;
+              appsJaVistos.add(pacote);
+            }
           }
-          appsAbertos.remove(pacote);
         }
       }
 
+      // Finaliza a conta dos apps que ainda estão abertos neste exato segundo
       int tempoFim = fim.millisecondsSinceEpoch;
       int agora = DateTime.now().millisecondsSinceEpoch;
       int limite = tempoFim < agora ? tempoFim : agora;
@@ -117,7 +137,10 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        inicio,
+        agora,
+      );
 
       int totalMillis = 0;
       for (var millis in tempoPorApp.values) {
@@ -136,7 +159,10 @@ class UsageService {
       final hojeInicio = DateTime(agora.year, agora.month, agora.day);
       final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(ontemInicio, hojeInicio);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        ontemInicio,
+        hojeInicio,
+      );
 
       int totalMillis = 0;
       for (var millis in tempoPorApp.values) {
@@ -153,7 +179,10 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        inicio,
+        agora,
+      );
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -164,7 +193,9 @@ class UsageService {
         }
       }
 
-      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
+      listaApps.sort(
+        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
+      );
       return listaApps.take(3).toList();
     } catch (e) {
       return [];
@@ -176,7 +207,10 @@ class UsageService {
       final agora = DateTime.now();
       final inicio = DateTime(agora.year, agora.month, agora.day);
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, agora);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        inicio,
+        agora,
+      );
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -187,7 +221,9 @@ class UsageService {
         }
       }
 
-      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
+      listaApps.sort(
+        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
+      );
       return listaApps;
     } catch (e) {
       return [];
@@ -207,7 +243,9 @@ class UsageService {
           .map((app) => {'id': app.packageName, 'nome': app.appName})
           .toList();
 
-      lista.sort((a, b) => (a['nome'] as String).compareTo(b['nome'] as String));
+      lista.sort(
+        (a, b) => (a['nome'] as String).compareTo(b['nome'] as String),
+      );
       return lista;
     } catch (e) {
       return [];
@@ -220,7 +258,10 @@ class UsageService {
       final hojeInicio = DateTime(agora.year, agora.month, agora.day);
       final ontemInicio = hojeInicio.subtract(const Duration(days: 1));
 
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(ontemInicio, hojeInicio);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        ontemInicio,
+        hojeInicio,
+      );
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -231,16 +272,24 @@ class UsageService {
         }
       }
 
-      listaApps.sort((a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int));
+      listaApps.sort(
+        (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
+      );
       return listaApps.take(10).toList();
     } catch (e) {
       return [];
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getAppsNoHorario(DateTime inicio, DateTime fim) async {
+  static Future<List<Map<String, dynamic>>> getAppsNoHorario(
+    DateTime inicio,
+    DateTime fim,
+  ) async {
     try {
-      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(inicio, fim);
+      Map<String, int> tempoPorApp = await _calcularTempoExatoPorApp(
+        inicio,
+        fim,
+      );
       List<Map<String, dynamic>> listaApps = [];
 
       for (String pacote in tempoPorApp.keys) {
@@ -256,16 +305,16 @@ class UsageService {
     }
   }
 
-  // ==============================================================================
-  // SOLUÇÃO DO GRÁFICO 24H: FATIADOR DE TEMPO COM GARANTIA DE FUSO HORÁRIO (TIMEZONE)
-  // ==============================================================================
   static Future<List<double>> getUsoPorHora() async {
     List<double> usoPorHora = List.filled(24, 0.0);
     DateTime agora = DateTime.now();
     DateTime inicioDoDia = DateTime(agora.year, agora.month, agora.day);
 
     try {
-      List<EventUsageInfo> eventos = await UsageStats.queryEvents(inicioDoDia, agora);
+      List<EventUsageInfo> eventos = await UsageStats.queryEvents(
+        inicioDoDia,
+        agora,
+      );
       Map<String, int> appsAbertos = {};
 
       for (var evento in eventos) {
@@ -290,7 +339,6 @@ class UsageService {
         }
       }
 
-      // Finaliza a conta dos apps que ainda estão abertos neste exato segundo
       int limite = agora.millisecondsSinceEpoch;
       for (var pacote in appsAbertos.keys) {
         int start = appsAbertos[pacote]!;
@@ -298,41 +346,46 @@ class UsageService {
           _distribuirTempoPorHora(start, limite, usoPorHora);
         }
       }
-    } catch (e) {
-      // Ignora falhas silenciosamente para manter a interface viva
-    }
+    } catch (e) {}
 
     return usoPorHora;
   }
 
-  // Função interna que converte o formato cru do Android para a sua Timezone e corta
-  // as horas perfeitamente (Ex: Se usar das 13:50 até 14:10, o gráfico ganha 10m nas 13h e 10m nas 14h)
-  static void _distribuirTempoPorHora(int startEpoch, int endEpoch, List<double> usoPorHora) {
-    // 1. FORÇA a interpretação como UTC (padrão de máquina) e só depois converte para a Zona Local.
-    DateTime dtStart = DateTime.fromMillisecondsSinceEpoch(startEpoch, isUtc: true).toLocal();
-    DateTime dtEnd = DateTime.fromMillisecondsSinceEpoch(endEpoch, isUtc: true).toLocal();
+  static void _distribuirTempoPorHora(
+    int startEpoch,
+    int endEpoch,
+    List<double> usoPorHora,
+  ) {
+    DateTime dtStart = DateTime.fromMillisecondsSinceEpoch(
+      startEpoch,
+      isUtc: true,
+    ).toLocal();
+    DateTime dtEnd = DateTime.fromMillisecondsSinceEpoch(
+      endEpoch,
+      isUtc: true,
+    ).toLocal();
 
     DateTime atual = dtStart;
 
     while (atual.isBefore(dtEnd)) {
-      // Cria a "virada de hora" (ex: se atual = 14:30, proximaHora = 15:00:00)
-      DateTime proximaHora = DateTime(atual.year, atual.month, atual.day, atual.hour + 1);
+      DateTime proximaHora = DateTime(
+        atual.year,
+        atual.month,
+        atual.day,
+        atual.hour + 1,
+      );
 
       if (proximaHora.isAfter(dtEnd)) {
-        // A sessão acabou antes da hora virar. Joga os minutos no gráfico e encerra.
         double minutos = dtEnd.difference(atual).inMilliseconds / 60000.0;
         if (atual.hour >= 0 && atual.hour < 24 && minutos > 0) {
           usoPorHora[atual.hour] += minutos;
         }
         break;
       } else {
-        // A sessão atravessa a hora cheia!
-        // Salva os minutos só até o relógio "bater a hora"...
         double minutos = proximaHora.difference(atual).inMilliseconds / 60000.0;
         if (atual.hour >= 0 && atual.hour < 24 && minutos > 0) {
           usoPorHora[atual.hour] += minutos;
         }
-        // ...e move o ponteiro para o começo exato da próxima hora.
         atual = proximaHora;
       }
     }
