@@ -5,7 +5,9 @@ class BossService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Catálogo de bosses disponíveis (rotação por semana)
+  // Dano bônus fixo por completar um desafio
+  static const int danoPorDesafioConcluido = 80;
+
   static const List<Map<String, dynamic>> catalogo = [
     {
       'id': 'boss_notificacoes',
@@ -50,12 +52,10 @@ class BossService {
     },
   ];
 
-  // Retorna stream do boss ativo do grupo
   Stream<DocumentSnapshot> bossStream(String grupoId) {
     return _db.collection('grupos').doc(grupoId).snapshots();
   }
 
-  // Cria um novo boss para o grupo
   Future<void> invocarBoss(String grupoId, Map<String, dynamic> boss) async {
     await _db.collection('grupos').doc(grupoId).update({
       'boss': {
@@ -70,13 +70,15 @@ class BossService {
         'cor': boss['cor'],
         'ativo': true,
         'criado_em': FieldValue.serverTimestamp(),
-        'dano_por_membro': {}, // uid -> dano total causado
+        'dano_por_membro': {},
+        'ataques_diarios': {},
       },
     });
   }
 
-  // Calcula e aplica o dano do usuário ao boss
-  // Dano = quantos minutos ficou ABAIXO do limite diário (padrão: 180min = 3h)
+  // =========================================================
+  // DANO MANUAL — botão Atacar na tela do boss (1x por dia)
+  // =========================================================
   Future<Map<String, dynamic>> atacarBoss({
     required String grupoId,
     required int minutosHoje,
@@ -89,50 +91,132 @@ class BossService {
         .collection('grupos')
         .doc(grupoId)
         .get();
+    if (!grupoDoc.exists) return {'sucesso': false};
     Map<String, dynamic> grupoData = grupoDoc.data() as Map<String, dynamic>;
     Map<String, dynamic>? boss = grupoData['boss'] as Map<String, dynamic>?;
-
-    if (boss == null || boss['ativo'] != true) {
+    if (boss == null || boss['ativo'] != true)
       return {'sucesso': false, 'motivo': 'sem_boss'};
-    }
 
-    // Checa se o usuário já atacou hoje
+    // Trava diária
     String hoje = _hoje();
     Map<String, dynamic> ataquesDiarios = Map<String, dynamic>.from(
       boss['ataques_diarios'] ?? {},
     );
-    if (ataquesDiarios[uid] == hoje) {
+    if (ataquesDiarios[uid] == hoje)
       return {'sucesso': false, 'motivo': 'ja_atacou'};
-    }
 
-    // Calcula dano: cada minuto abaixo do limite = 1 de dano, mínimo 10
     int dano = (minutosHoje < limiteMinutos)
         ? (limiteMinutos - minutosHoje).clamp(10, 200).toInt()
-        : 10; // Mesmo acima do limite, causa dano mínimo para incentivar participação
+        : 10;
 
+    ataquesDiarios[uid] = hoje;
+    await _db.collection('grupos').doc(grupoId).update({
+      'boss.ataques_diarios': ataquesDiarios,
+    });
+
+    return await _aplicarDano(
+      grupoId: grupoId,
+      uid: uid,
+      dano: dano,
+      boss: boss,
+      grupoData: grupoData,
+    );
+  }
+
+  // =========================================================
+  // DANO AUTOMÁTICO DIÁRIO — chamado pelo sync ao virar o dia
+  // =========================================================
+  Future<Map<String, dynamic>> danoSyncDiario({
+    required String grupoId,
+    required String uid,
+    required int minutosHoje,
+    int limiteMinutos = 180,
+  }) async {
+    if (uid.isEmpty) return {'sucesso': false};
+
+    DocumentSnapshot grupoDoc = await _db
+        .collection('grupos')
+        .doc(grupoId)
+        .get();
+    if (!grupoDoc.exists) return {'sucesso': false};
+    Map<String, dynamic> grupoData = grupoDoc.data() as Map<String, dynamic>;
+    Map<String, dynamic>? boss = grupoData['boss'] as Map<String, dynamic>?;
+    if (boss == null || boss['ativo'] != true)
+      return {'sucesso': false, 'motivo': 'sem_boss'};
+
+    int dano = minutosHoje < limiteMinutos
+        ? (limiteMinutos - minutosHoje).clamp(5, 150).toInt()
+        : 5;
+
+    return await _aplicarDano(
+      grupoId: grupoId,
+      uid: uid,
+      dano: dano,
+      boss: boss,
+      grupoData: grupoData,
+    );
+  }
+
+  // =========================================================
+  // DANO BÔNUS POR DESAFIO — chamado ao coletar desafio
+  // =========================================================
+  Future<Map<String, dynamic>> danoPorDesafio({
+    required String grupoId,
+    required String uid,
+  }) async {
+    if (uid.isEmpty || grupoId.isEmpty) return {'sucesso': false};
+
+    DocumentSnapshot grupoDoc = await _db
+        .collection('grupos')
+        .doc(grupoId)
+        .get();
+    if (!grupoDoc.exists) return {'sucesso': false};
+    Map<String, dynamic> grupoData = grupoDoc.data() as Map<String, dynamic>;
+    Map<String, dynamic>? boss = grupoData['boss'] as Map<String, dynamic>?;
+    if (boss == null || boss['ativo'] != true)
+      return {'sucesso': false, 'motivo': 'sem_boss'};
+
+    return await _aplicarDano(
+      grupoId: grupoId,
+      uid: uid,
+      dano: danoPorDesafioConcluido,
+      boss: boss,
+      grupoData: grupoData,
+    );
+  }
+
+  // =========================================================
+  // NÚCLEO: aplica dano, verifica derrota, distribui recompensas
+  // =========================================================
+  Future<Map<String, dynamic>> _aplicarDano({
+    required String grupoId,
+    required String uid,
+    required int dano,
+    required Map<String, dynamic> boss,
+    required Map<String, dynamic> grupoData,
+  }) async {
     int hpAtual = boss['hp_atual'] ?? 0;
-    int novoHp = (hpAtual - dano).clamp(0, (boss["hp_maximo"] as int)).toInt();
+    int novoHp = (hpAtual - dano).clamp(0, (boss['hp_maximo'] as int)).toInt();
 
-    // Acumula dano por membro
     Map<String, dynamic> danoPorMembro = Map<String, dynamic>.from(
       boss['dano_por_membro'] ?? {},
     );
     danoPorMembro[uid] = (danoPorMembro[uid] ?? 0) + dano;
-
-    ataquesDiarios[uid] = hoje;
 
     bool derrotou = novoHp <= 0;
 
     await _db.collection('grupos').doc(grupoId).update({
       'boss.hp_atual': novoHp,
       'boss.dano_por_membro': danoPorMembro,
-      'boss.ataques_diarios': ataquesDiarios,
       if (derrotou) 'boss.ativo': false,
     });
 
-    // Se derrotou, distribui recompensas para todos os membros
     if (derrotou) {
-      await _distribuirRecompensas(grupoId, boss, grupoData['membros'] ?? []);
+      await _distribuirRecompensas(
+        boss,
+        grupoData['membros'] ?? [],
+        danoPorMembro,
+      );
     }
 
     return {
@@ -143,25 +227,55 @@ class BossService {
     };
   }
 
-  // Distribui XP e moedas para todos ao derrotar o boss
+  // =========================================================
+  // DISTRIBUIÇÃO PROPORCIONAL AO DANO CAUSADO
+  // =========================================================
   Future<void> _distribuirRecompensas(
-    String grupoId,
     Map<String, dynamic> boss,
     List<dynamic> membros,
+    Map<String, dynamic> danoPorMembro,
   ) async {
-    int xp = boss['recompensa_xp'] ?? 200;
-    int moedas = boss['recompensa_moedas'] ?? 50;
+    int xpTotal = boss['recompensa_xp'] ?? 200;
+    int moedasTotal = boss['recompensa_moedas'] ?? 50;
+
+    int danoTotalGrupo = danoPorMembro.values.fold(
+      0,
+      (soma, dano) => soma + (dano as int),
+    );
 
     WriteBatch batch = _db.batch();
     for (String uid in membros.cast<String>()) {
-      DocumentReference userRef = _db.collection('usuarios').doc(uid);
-      // Usa increment para não precisar ler o doc de cada membro
-      batch.update(userRef, {
-        'xp': FieldValue.increment(xp),
-        'moedas': FieldValue.increment(moedas),
+      int danoCausado = danoPorMembro[uid] ?? 0;
+      int xpFinal;
+      int moedasFinal;
+
+      if (danoTotalGrupo == 0 || danoCausado == 0) {
+        // Não participou — consolação de 10%
+        xpFinal = (xpTotal * 0.1).round();
+        moedasFinal = (moedasTotal * 0.1).round();
+      } else {
+        double proporcao = danoCausado / danoTotalGrupo;
+        xpFinal = (xpTotal * proporcao).round();
+        moedasFinal = (moedasTotal * proporcao).round();
+      }
+
+      batch.update(_db.collection('usuarios').doc(uid), {
+        'xp': FieldValue.increment(xpFinal),
+        'moedas': FieldValue.increment(moedasFinal),
       });
     }
     await batch.commit();
+  }
+
+  // Busca o grupoId do grupo ao qual o usuário pertence
+  Future<String> getGrupoIdDoUsuario(String uid) async {
+    QuerySnapshot snap = await _db
+        .collection('grupos')
+        .where('membros', arrayContains: uid)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return '';
+    return snap.docs.first.id;
   }
 
   String _hoje() {

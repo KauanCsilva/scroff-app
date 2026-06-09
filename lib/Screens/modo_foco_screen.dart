@@ -28,7 +28,6 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
   bool _musicaTocando = false;
   bool _cafeAtivadoNoFoco = false;
 
-  // 👇 CONTROLADORES DA ANIMAÇÃO DE XP FLUTUANTE 👇
   late AnimationController _xpAnimController;
   late Animation<double> _xpOpacity;
   late Animation<double> _xpPosition;
@@ -91,7 +90,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
 
       if (!_musicaTocando) {
         try {
-          await _audioPlayer.play(AssetSource('sounds/Lofi.mp3'));
+          await _audioPlayer.play(AssetSource('sounds/Lofi.mpeg'));
           _musicaTocando = true;
         } catch (_) {}
       }

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'usage_service.dart';
+import 'boss_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -86,6 +87,26 @@ class FirestoreService {
           }
         }
         print("🔄 Dia virou! Desafios coletados foram limpos.");
+
+        // Dano automático diário ao boss do grupo (se houver)
+        try {
+          BossService bossService = BossService();
+          String grupoId = await bossService.getGrupoIdDoUsuario(uid);
+          if (grupoId.isNotEmpty) {
+            final resultado = await bossService.danoSyncDiario(
+              grupoId: grupoId,
+              uid: uid,
+              minutosHoje: minutosFinaisRanking,
+            );
+            if (resultado['sucesso'] == true) {
+              print(
+                "⚔️ Dano diário ao boss: ${resultado['dano']} (HP: ${resultado['hp_atual']})",
+              );
+            }
+          }
+        } catch (e) {
+          print("Boss sync diário: $e");
+        }
       }
     } catch (e) {
       print("Erro na sincronização diária: $e");
