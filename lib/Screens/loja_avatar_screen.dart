@@ -22,7 +22,6 @@ class _LojaScreenState extends State<LojaScreen> {
     super.dispose();
   }
 
-  // MOTOR DE COMPRA DINÂMICO (Avatares, Títulos e Power-Ups)
   Future<void> _processarCompra(
       ItemLoja item,
       int moedasAtuais,
@@ -31,14 +30,9 @@ class _LojaScreenState extends State<LojaScreen> {
     String uid = _auth.currentUser!.uid;
     Map<String, dynamic> updates = {};
 
-    // =========================================================
-    // ROTA A: LÓGICA PARA ITENS CONSUMÍVEIS (Pode comprar vários)
-    // =========================================================
     if (item.tipo == 'consumivel') {
       if (moedasAtuais >= item.preco) {
         Map<String, dynamic> consumiveis = Map<String, dynamic>.from(userData['consumiveis'] ?? {});
-
-        // Adiciona 1 à quantidade atual (ou define como 1 se não tinha nenhum)
         consumiveis[item.id] = (consumiveis[item.id] ?? 0) + 1;
 
         updates['moedas'] = moedasAtuais - item.preco;
@@ -51,19 +45,16 @@ class _LojaScreenState extends State<LojaScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('+1 ${item.nome} adquirido!'),
-              backgroundColor: const Color(0xFF1D9E75),
+              backgroundColor: const Color(0xFF4CAF50),
             ),
           );
         }
       } else {
         if (mounted) _mostrarErroSaldo();
       }
-      return; // Encerra a função aqui para consumíveis
+      return;
     }
 
-    // =========================================================
-    // ROTA B: LÓGICA PARA AVATARES E TÍTULOS (Compra única)
-    // =========================================================
     String campoInventario = item.tipo == 'titulo' ? 'inventario_titulos' : 'inventario';
     String campoAtual = item.tipo == 'titulo' ? 'titulo_atual' : 'acessorio_atual';
     List fallbackInventario = item.tipo == 'titulo' ? ['t_iniciante'] : ['avatar_basicof', 'avatar_basicom'];
@@ -72,7 +63,6 @@ class _LojaScreenState extends State<LojaScreen> {
     bool jaTem = invUsuario.contains(item.id) || item.preco == 0;
 
     if (jaTem) {
-      // EQUIPAR ITEM QUE JÁ POSSUI
       await _db.collection('usuarios').doc(uid).update({campoAtual: item.id});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -83,7 +73,6 @@ class _LojaScreenState extends State<LojaScreen> {
         );
       }
     } else {
-      // COMPRAR NOVO ITEM PERMANENTE
       if (moedasAtuais >= item.preco) {
         updates['moedas'] = moedasAtuais - item.preco;
         invUsuario.add(item.id);
@@ -97,7 +86,7 @@ class _LojaScreenState extends State<LojaScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${item.nome} desbloqueado!'),
-              backgroundColor: const Color(0xFF1D9E75),
+              backgroundColor: const Color(0xFF4CAF50),
             ),
           );
         }
@@ -116,12 +105,120 @@ class _LojaScreenState extends State<LojaScreen> {
     );
   }
 
-  // GERADOR DE GRADES (Adapta-se ao tipo de aba lida)
+  Widget _construirGradeDeSelos(Map<String, dynamic> userData) {
+    List badgesUsuario = userData['badges'] ?? [];
+    List<ItemLoja> itens = LojaService.getItensPorTipo('selo');
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.85,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: itens.length,
+      itemBuilder: (context, index) {
+        var item = itens[index];
+        bool desbloqueado = badgesUsuario.contains(item.id);
+
+        Color corFundoBotao = desbloqueado ? const Color(0xFF96D268) : const Color(0xFFFF8C00);
+
+        Widget visualDoItem;
+        if (item.imagemPath != null && item.imagemPath!.isNotEmpty) {
+          visualDoItem = Image.asset(
+            item.imagemPath!,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+            const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+          );
+        } else {
+          visualDoItem = Container(
+            color: const Color(0xFF281E2A),
+            alignment: Alignment.center,
+            child: Icon(
+              item.icone ?? Icons.star,
+              size: 64,
+              color: Colors.amber,
+            ),
+          );
+        }
+
+        if (!desbloqueado) {
+          visualDoItem = ColorFiltered(
+            colorFilter: const ColorFilter.matrix(<double>[
+              0.2126, 0.7152, 0.0722, 0, 0,
+              0.2126, 0.7152, 0.0722, 0, 0,
+              0.2126, 0.7152, 0.0722, 0, 0,
+              0,      0,      0,      1, 0,
+            ]),
+            child: visualDoItem,
+          );
+        }
+
+        return GestureDetector(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  desbloqueado
+                      ? 'Selo desbloqueado!'
+                      : (item.descricao ?? 'Continue focado para desbloquear!'),
+                ),
+                backgroundColor: desbloqueado ? const Color(0xFF246815) : Colors.orange,
+              ),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                )
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: visualDoItem,
+                  ),
+                  Container(
+                    height: 48,
+                    decoration: BoxDecoration(color: corFundoBotao),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        item.nome,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _construirGradeDeItens(String tipoDaAba, Map<String, dynamic> userData) {
     int moedas = userData['moedas'] ?? 0;
     int nivelAtual = userData['nivel'] ?? 1;
 
-    // Leituras Dinâmicas
     String campoInventario = tipoDaAba == 'titulo' ? 'inventario_titulos' : 'inventario';
     String campoAtual = tipoDaAba == 'titulo' ? 'titulo_atual' : 'acessorio_atual';
 
@@ -135,7 +232,7 @@ class _LojaScreenState extends State<LojaScreen> {
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.70, // Espaço extra para mostrar o estoque dos power-ups
+        childAspectRatio: 0.70,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -146,7 +243,6 @@ class _LojaScreenState extends State<LojaScreen> {
         bool ehConsumivel = item.tipo == 'consumivel';
         bool bloqueado = nivelAtual < item.lvl;
 
-        // Consumíveis nunca ficam no status "equipado" ou "já tem"
         bool isEquipado = !ehConsumivel && itemEquipado == item.id;
         bool jaTem = !ehConsumivel && (invUsuario.contains(item.id) || item.preco == 0);
 
@@ -166,9 +262,9 @@ class _LojaScreenState extends State<LojaScreen> {
           corFundoBotao = Colors.grey[300]!;
           textoBotao = 'Equipar';
         } else {
-          corFundoBotao = const Color(0xFF1D9E75);
+          corFundoBotao = const Color(0xFF96D268);
           textoBotao = '${item.preco} moedas';
-          corTextoBotao = Colors.white;
+          corTextoBotao = Colors.black;
         }
 
         Widget visualDoItem;
@@ -187,7 +283,8 @@ class _LojaScreenState extends State<LojaScreen> {
           );
         }
 
-        if (bloqueado) {
+        // Apply grayscale filter only if it is locked AND it is not an avatar ('icone')
+        if (bloqueado && tipoDaAba != 'icone') {
           visualDoItem = ColorFiltered(
             colorFilter: const ColorFilter.matrix(<double>[
               0.2126, 0.7152, 0.0722, 0, 0,
@@ -227,22 +324,27 @@ class _LojaScreenState extends State<LojaScreen> {
                         alignment: Alignment.center,
                         children: [
                           Opacity(
-                            opacity: bloqueado ? 0.4 : 1.0,
+                            // Opacity stays at 1.0 for avatars to keep colors vibrant when locked
+                            opacity: (bloqueado && tipoDaAba != 'icone') ? 0.4 : 1.0,
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Expanded(child: visualDoItem),
-                                const SizedBox(height: 8),
-                                Text(
-                                  item.nome,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 14,
-                                    color: bloqueado ? Colors.grey : const Color(0xFF1D9E75),
+
+                                // Hide the name text exclusively on the avatar tab
+                                if (tipoDaAba != 'icone') ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    item.nome,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                      color: bloqueado ? Colors.grey : const Color(0xFF246815),
+                                    ),
                                   ),
-                                ),
-                                // Indicador de Estoque para Power-Ups
+                                ],
+
                                 if (ehConsumivel && !bloqueado)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4.0),
@@ -295,7 +397,7 @@ class _LojaScreenState extends State<LojaScreen> {
     String uid = _auth.currentUser!.uid;
 
     return DefaultTabController(
-      length: 3, // Mudamos de 2 para 3 abas
+      length: 4,
       child: Scaffold(
         backgroundColor: Colors.grey[50],
         appBar: AppBar(
@@ -304,16 +406,18 @@ class _LojaScreenState extends State<LojaScreen> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
+          foregroundColor: Color(0xFF246815),
           elevation: 0,
           bottom: const TabBar(
-            indicatorColor: Color(0xFF1D9E75),
-            labelColor: Color(0xFF1D9E75),
+            isScrollable: true,
+            indicatorColor: Color(0xFFFF5700),
+            labelColor: Color(0xFFFF5700),
             unselectedLabelColor: Colors.grey,
             tabs: [
               Tab(icon: Icon(Icons.person), text: 'Avatares'),
               Tab(icon: Icon(Icons.flash_on), text: 'Power-Ups'),
               Tab(icon: Icon(Icons.military_tech), text: 'Títulos'),
+              Tab(icon: Icon(Icons.shield), text: 'Selos'),
             ],
           ),
         ),
@@ -322,7 +426,7 @@ class _LojaScreenState extends State<LojaScreen> {
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF1D9E75)),
+                child: CircularProgressIndicator(color: Color(0xFF246815)),
               );
             }
 
@@ -364,13 +468,13 @@ class _LojaScreenState extends State<LojaScreen> {
                 ),
                 const Divider(height: 1),
 
-                // Exibe as 3 abas na mesma ordem definida no topo
                 Expanded(
                   child: TabBarView(
                     children: [
                       _construirGradeDeItens('icone', userData),
                       _construirGradeDeItens('consumivel', userData),
                       _construirGradeDeItens('titulo', userData),
+                      _construirGradeDeSelos(userData),
                     ],
                   ),
                 ),

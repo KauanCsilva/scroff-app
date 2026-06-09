@@ -204,6 +204,33 @@ class _DesafiosScreenState extends State<DesafiosScreen>
       final FirestoreService firestoreService = FirestoreService();
       await firestoreService.adicionarRecompensa(xpGanho, moedasGanhas);
 
+      // INÍCIO DA LÓGICA DA BADGE: VERIFICA SE É O PRIMEIRO DESAFIO
+      var desafiosColetados = await _db
+          .collection('usuarios')
+          .doc(uid)
+          .collection('meus_desafios')
+          .where('status', isEqualTo: 'coletado')
+          .limit(1)
+          .get();
+
+      if (desafiosColetados.docs.isEmpty) {
+        // Se a lista está vazia, este é o primeiro desafio concluído!
+        await _db.collection('usuarios').doc(uid).update({
+          'badges': FieldValue.arrayUnion(['badge_primeiro_desafio'])
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Selo Desbloqueado: O inicio!'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+      // FIM DA LÓGICA DA BADGE
+
       await _db
           .collection('usuarios')
           .doc(uid)

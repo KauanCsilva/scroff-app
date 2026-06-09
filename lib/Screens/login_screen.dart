@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF111111),
+      backgroundColor: Colors.white, // Fundo alterado para branco
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -72,38 +72,25 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // LOGO
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1D9E75).withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: const Color(0xFF1D9E75).withOpacity(0.4),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.phonelink_off_rounded,
-                    size: 38,
-                    color: Color(0xFF1D9E75),
+                // NOVA IMAGEM SUBSTITUINDO O ÍCONE E O TEXTO
+                Image.asset(
+                  'assets/logo/scroff.png', // Certifique-se de que a imagem está nesta pasta
+                  height: 420,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.broken_image,
+                    size: 80,
+                    color: Colors.grey,
                   ),
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  "SCROFF",
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 4,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 16),
                 Text(
                   _modoLogin ? "Bem-vindo de volta" : "Crie sua conta",
-                  style: const TextStyle(fontSize: 14, color: Colors.white54),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54, // Cor adaptada para o fundo branco
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 40),
 
@@ -137,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // BOTÃO PRINCIPAL
                 if (_carregando)
-                  const CircularProgressIndicator(color: Color(0xFF1D9E75))
+                  const CircularProgressIndicator(color: Color(0xFF246815)) // Novo verde
                 else
                   SizedBox(
                     width: double.infinity,
@@ -145,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ElevatedButton(
                       onPressed: _processarAcao,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1D9E75),
+                        backgroundColor: const Color(0xFF246815), // Novo verde
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -178,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ? "Não tem conta? Cadastre-se"
                         : "Já tem conta? Entrar",
                     style: const TextStyle(
-                      color: Color(0xFF1D9E75),
+                      color: Color(0xFF246815), // Novo verde
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -202,20 +189,21 @@ class _LoginScreenState extends State<LoginScreen> {
       controller: controller,
       obscureText: senha,
       keyboardType: teclado,
-      style: const TextStyle(color: Colors.white),
+      // Cores do texto invertidas para aparecer no fundo branco
+      style: const TextStyle(color: Colors.black87),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white54),
-        prefixIcon: Icon(icone, color: Colors.white38, size: 20),
+        labelStyle: const TextStyle(color: Colors.black54),
+        prefixIcon: Icon(icone, color: Colors.black38, size: 20),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.07),
+        fillColor: Colors.grey[100], // Fundo da caixa levemente cinza
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1D9E75), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF246815), width: 1.5), // Novo verde
         ),
       ),
     );

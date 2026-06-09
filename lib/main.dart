@@ -22,7 +22,7 @@ class ScroffApp extends StatelessWidget {
       title: 'Scroff',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1D9E75),
+        colorSchemeSeed: const Color(0xFF246815),
         useMaterial3: true,
       ),
       // O StreamBuilder é o primeiro filtro: Login
