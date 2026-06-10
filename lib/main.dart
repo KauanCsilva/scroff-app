@@ -67,10 +67,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Isso aqui é o que fazia funcionar bem: checar sempre que você volta pro app
+  // Checa ao voltar pro app SÓ se ainda não tem permissão
+  // Evita jogar na PermissionScreen ao desbloquear o celular
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && !_permissaoConcedida) {
       _verificarPermissao();
     }
   }
