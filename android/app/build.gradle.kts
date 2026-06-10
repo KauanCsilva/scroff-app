@@ -35,16 +35,19 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
 
-    configurations.all {
-        resolutionStrategy.eachDependency {
-            if (requested.group == "androidx.core" && requested.name == "core") {
-                useVersion("1.12.0")
-            }
-        }
+// Must be outside the android {} block to take effect
+configurations.all {
+    resolutionStrategy {
+        force("androidx.core:core:1.15.0")
+        force("androidx.core:core-ktx:1.15.0")
     }
 }
 
+dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
+}
 
 flutter {
     source = "../.."
