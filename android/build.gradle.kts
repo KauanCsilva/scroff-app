@@ -13,7 +13,7 @@ subprojects {
     project.layout.buildDirectory.value(newBuildDir)
 }
 
-// 🚀 O GATILHO CIRÚRGICO: Injeta o SDK 35 ANTES do Flutter trancar o arquivo, MAS poupa o installed_apps!
+// Forces compileSdk 35 on all subprojects except installed_apps
 subprojects {
     afterEvaluate {
         if (project.name != "installed_apps") {
@@ -25,9 +25,14 @@ subprojects {
     }
 }
 
-// O Flutter tranca a leitura nesta linha aqui embaixo:
+// Forces androidx.core to 1.15.0 across all subprojects
 subprojects {
-    project.evaluationDependsOn(":app")
+    configurations.all {
+        resolutionStrategy {
+            force("androidx.core:core:1.15.0")
+            force("androidx.core:core-ktx:1.15.0")
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

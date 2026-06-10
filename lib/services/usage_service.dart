@@ -31,19 +31,9 @@ class UsageService {
 
   static Future<bool> temPermissao() async {
     try {
-      // Usa uma janela de 1 hora — mais confiável que 1 minuto
-      // pois logo após desbloquear o celular a janela de 1min pode estar vazia
-      DateTime agora = DateTime.now();
-      DateTime umaHoraAtras = agora.subtract(const Duration(hours: 1));
-
-      List<UsageInfo> stats = await UsageStats.queryUsageStats(
-        umaHoraAtras,
-        agora,
-      );
-
-      // Se retornou qualquer dado (mesmo vazio mas sem exception) = tem permissão
-      // A exception é o que indica falta de permissão no Android
-      return true;
+      // Usa a função nativa do pacote para verificar o status real no Android
+      bool? concedido = await UsageStats.checkUsagePermission();
+      return concedido ?? false;
     } catch (e) {
       return false;
     }
