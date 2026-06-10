@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:usage_stats/usage_stats.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:installed_apps/app_info.dart';
@@ -31,9 +32,20 @@ class UsageService {
 
   static Future<bool> temPermissao() async {
     try {
-      // Usa a função nativa do pacote para verificar o status real no Android
+      // Primeiro tenta a verificação nativa
       bool? concedido = await UsageStats.checkUsagePermission();
-      return concedido ?? false;
+
+      // Se retornou false com certeza, não tem permissão
+      if (concedido == false) return false;
+
+      // Se retornou null ou true, confirma com uma query real
+      // pois checkUsagePermission pode dar falso positivo em alguns dispositivos
+      DateTime agora = DateTime.now();
+      DateTime umDiaAtras = agora.subtract(const Duration(days: 1));
+      await UsageStats.queryUsageStats(umDiaAtras, agora);
+
+      // Se chegou aqui sem exception, tem permissão de verdade
+      return true;
     } catch (e) {
       return false;
     }
@@ -95,7 +107,7 @@ class UsageService {
           // ACTIVITY_PAUSED / STOPPED
           // Só calcula se temos CERTEZA de que o app estava aberto (ignora os eventos orfaos do OS)
           if (appsAbertos.containsKey(pacote)) {
-            int start = appsAbertos[pacote]!;
+            int start = appsAbertos[pacote] ?? 0;
 
             int inicioValido = start < inicioEpoch ? inicioEpoch : start;
             int fimValido = timestamp > fimEpoch ? fimEpoch : timestamp;
@@ -113,7 +125,7 @@ class UsageService {
       int limite = fimEpoch < agoraEpoch ? fimEpoch : agoraEpoch;
 
       for (var pacote in appsAbertos.keys) {
-        int start = appsAbertos[pacote]!;
+        int start = appsAbertos[pacote] ?? 0;
         if (!_deveIgnorar(pacote)) {
           int inicioValido = start < inicioEpoch ? inicioEpoch : start;
           if (limite > inicioValido) {
@@ -123,7 +135,7 @@ class UsageService {
         }
       }
     } catch (e) {
-      print("Erro no cálculo de eventos: $e");
+      debugPrint("Erro no cálculo de eventos: $e");
     }
 
     return tempoPorApp;
@@ -131,19 +143,19 @@ class UsageService {
 
   static Future<String> _buscarNomeApp(String pacote) async {
     try {
-      // 👇 FIX AQUI: Passamos 'null' para o BuiltWith?
       AppInfo? appInfo = await InstalledApps.getAppInfo(pacote, null);
-      if (appInfo != null && appInfo.name != null && appInfo.name!.isNotEmpty) {
-        return appInfo.name!;
-      } else {
-        final partes = pacote.split('.');
-        final ultimoNome = partes.last;
-        if (ultimoNome.isNotEmpty) {
-          return ultimoNome.substring(0, 1).toUpperCase() +
-              ultimoNome.substring(1).toLowerCase();
-        }
+      final nome = appInfo?.name;
+      if (nome != null && nome.isNotEmpty) {
+        return nome;
       }
-    } catch (e) {}
+      // Fallback: usa a última parte do package name
+      final partes = pacote.split('.');
+      final ultimoNome = partes.last;
+      if (ultimoNome.isNotEmpty) {
+        return ultimoNome.substring(0, 1).toUpperCase() +
+            ultimoNome.substring(1).toLowerCase();
+      }
+    } catch (_) {}
     return 'Desconhecido';
   }
 
@@ -198,15 +210,19 @@ class UsageService {
         inicio,
         agora,
       );
-      List<Map<String, dynamic>> listaApps = [];
 
-      for (String pacote in tempoPorApp.keys) {
-        int minutos = tempoPorApp[pacote]! ~/ 60000;
-        if (minutos > 0) {
-          String nomeReal = await _buscarNomeApp(pacote);
-          listaApps.add({'nome': nomeReal, 'minutos': minutos});
-        }
-      }
+      final pacotesComUso = tempoPorApp.entries
+          .where((e) => e.value ~/ 60000 > 0)
+          .toList();
+
+      final nomes = await Future.wait(
+        pacotesComUso.map((e) => _buscarNomeApp(e.key)),
+      );
+
+      List<Map<String, dynamic>> listaApps = List.generate(
+        pacotesComUso.length,
+        (i) => {'nome': nomes[i], 'minutos': pacotesComUso[i].value ~/ 60000},
+      );
 
       listaApps.sort(
         (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
@@ -226,15 +242,19 @@ class UsageService {
         inicio,
         agora,
       );
-      List<Map<String, dynamic>> listaApps = [];
 
-      for (String pacote in tempoPorApp.keys) {
-        int minutos = tempoPorApp[pacote]! ~/ 60000;
-        if (minutos > 0) {
-          String nomeReal = await _buscarNomeApp(pacote);
-          listaApps.add({'nome': nomeReal, 'minutos': minutos});
-        }
-      }
+      final pacotesComUso = tempoPorApp.entries
+          .where((e) => e.value ~/ 60000 > 0)
+          .toList();
+
+      final nomes = await Future.wait(
+        pacotesComUso.map((e) => _buscarNomeApp(e.key)),
+      );
+
+      List<Map<String, dynamic>> listaApps = List.generate(
+        pacotesComUso.length,
+        (i) => {'nome': nomes[i], 'minutos': pacotesComUso[i].value ~/ 60000},
+      );
 
       listaApps.sort(
         (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
@@ -282,15 +302,19 @@ class UsageService {
         ontemInicio,
         hojeInicio,
       );
-      List<Map<String, dynamic>> listaApps = [];
 
-      for (String pacote in tempoPorApp.keys) {
-        int minutos = tempoPorApp[pacote]! ~/ 60000;
-        if (minutos > 0) {
-          String nomeReal = await _buscarNomeApp(pacote);
-          listaApps.add({'nome': nomeReal, 'minutos': minutos});
-        }
-      }
+      final pacotesComUso = tempoPorApp.entries
+          .where((e) => e.value ~/ 60000 > 0)
+          .toList();
+
+      final nomes = await Future.wait(
+        pacotesComUso.map((e) => _buscarNomeApp(e.key)),
+      );
+
+      List<Map<String, dynamic>> listaApps = List.generate(
+        pacotesComUso.length,
+        (i) => {'nome': nomes[i], 'minutos': pacotesComUso[i].value ~/ 60000},
+      );
 
       listaApps.sort(
         (a, b) => (b['minutos'] as int).compareTo(a['minutos'] as int),
@@ -310,16 +334,19 @@ class UsageService {
         inicio,
         fim,
       );
-      List<Map<String, dynamic>> listaApps = [];
 
-      for (String pacote in tempoPorApp.keys) {
-        int minutos = tempoPorApp[pacote]! ~/ 60000;
-        if (minutos > 0) {
-          String nomeReal = await _buscarNomeApp(pacote);
-          listaApps.add({'nome': nomeReal, 'minutos': minutos});
-        }
-      }
-      return listaApps;
+      final pacotesComUso = tempoPorApp.entries
+          .where((e) => e.value ~/ 60000 > 0)
+          .toList();
+
+      final nomes = await Future.wait(
+        pacotesComUso.map((e) => _buscarNomeApp(e.key)),
+      );
+
+      return List.generate(
+        pacotesComUso.length,
+        (i) => {'nome': nomes[i], 'minutos': pacotesComUso[i].value ~/ 60000},
+      );
     } catch (e) {
       return [];
     }
@@ -366,7 +393,7 @@ class UsageService {
           appsAbertos[pacote] = timestamp;
         } else if (tipo == '2' || tipo == '23') {
           if (appsAbertos.containsKey(pacote)) {
-            int start = appsAbertos[pacote]!;
+            int start = appsAbertos[pacote] ?? 0;
             int inicioValido = start < inicioEpoch ? inicioEpoch : start;
 
             if (timestamp > inicioValido) {
