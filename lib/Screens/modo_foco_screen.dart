@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:confetti/confetti.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
@@ -27,6 +28,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _musicaTocando = false;
   bool _cafeAtivadoNoFoco = false;
+  late ConfettiController _confettiController;
 
   late AnimationController _xpAnimController;
   late Animation<double> _xpOpacity;
@@ -39,6 +41,9 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
     super.initState();
     _segundosRestantes = _tempoTotal;
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
 
     _xpAnimController = AnimationController(
       vsync: this,
@@ -59,6 +64,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
   void dispose() {
     _timer?.cancel();
     _audioPlayer.dispose();
+    _confettiController.dispose();
     _xpAnimController.dispose();
     super.dispose();
   }
@@ -146,7 +152,19 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
       moedasBase *= 2;
     }
 
-    await _firestoreService.adicionarRecompensa(xpBase, moedasBase);
+    bool subiuDeNivel = await _firestoreService.adicionarRecompensa(
+      xpBase,
+      moedasBase,
+    );
+
+    // Se subiu de nível, dispara confete
+    if (subiuDeNivel) {
+      _confettiController.play();
+      HapticFeedback.heavyImpact();
+      try {
+        await AudioPlayer().play(AssetSource('sounds/levelup.mp3'));
+      } catch (_) {}
+    }
 
     // SOM E VIBRAÇÃO DE SUCESSO
     try {
@@ -364,6 +382,22 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
                     ],
                   ],
                 ),
+              ),
+            ),
+            // CONFETE DE LEVEL UP
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                numberOfParticles: 30,
+                gravity: 0.2,
+                colors: const [
+                  Color(0xFF246815),
+                  Colors.amber,
+                  Colors.white,
+                  Colors.orange,
+                ],
               ),
             ),
           ],

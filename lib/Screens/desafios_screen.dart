@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:confetti/confetti.dart';
 import '../services/usage_service.dart';
 import '../services/firestore_service.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -18,6 +19,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final AudioPlayer _audioPlayer = AudioPlayer();
+  late ConfettiController _confettiController;
 
   List<Map<String, dynamic>> _usoHoje = [];
   bool _carregandoUso = true;
@@ -33,6 +35,9 @@ class _DesafiosScreenState extends State<DesafiosScreen>
   void initState() {
     super.initState();
     _carregarUsoEmTempoReal();
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
 
     _xpAnimController = AnimationController(
       vsync: this,
@@ -52,6 +57,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _confettiController.dispose();
     _xpAnimController.dispose();
     super.dispose();
   }
@@ -202,7 +208,18 @@ class _DesafiosScreenState extends State<DesafiosScreen>
 
     if (minutosUsadosNaJanela <= limite) {
       final FirestoreService firestoreService = FirestoreService();
-      await firestoreService.adicionarRecompensa(xpGanho, moedasGanhas);
+      bool subiuDeNivel = await firestoreService.adicionarRecompensa(
+        xpGanho,
+        moedasGanhas,
+      );
+
+      if (subiuDeNivel) {
+        _confettiController.play();
+        HapticFeedback.heavyImpact();
+        try {
+          await AudioPlayer().play(AssetSource('sounds/levelup.mp3'));
+        } catch (_) {}
+      }
 
       // INÍCIO DA LÓGICA DA BADGE: VERIFICA SE É O PRIMEIRO DESAFIO
       var desafiosColetados = await _db
@@ -216,7 +233,7 @@ class _DesafiosScreenState extends State<DesafiosScreen>
       if (desafiosColetados.docs.isEmpty) {
         // Se a lista está vazia, este é o primeiro desafio concluído!
         await _db.collection('usuarios').doc(uid).update({
-          'badges': FieldValue.arrayUnion(['badge_primeiro_desafio'])
+          'badges': FieldValue.arrayUnion(['badge_primeiro_desafio']),
         });
 
         if (mounted) {
@@ -718,6 +735,22 @@ class _DesafiosScreenState extends State<DesafiosScreen>
               },
             ),
           ),
+        // CONFETE DE LEVEL UP
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive,
+            numberOfParticles: 30,
+            gravity: 0.2,
+            colors: const [
+              Color(0xFF246815),
+              Colors.amber,
+              Colors.white,
+              Colors.orange,
+            ],
+          ),
+        ),
       ],
     );
   }

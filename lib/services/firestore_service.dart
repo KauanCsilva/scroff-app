@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'usage_service.dart';
+import 'boss_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -59,7 +60,11 @@ class FirestoreService {
       if (ultimaSincronizacao.isNotEmpty) {
         List<String> partes = ultimaSincronizacao.split('-');
         if (partes.length == 3) {
-          DateTime ultimaData = DateTime(int.parse(partes[0]), int.parse(partes[1]), int.parse(partes[2]));
+          DateTime ultimaData = DateTime(
+            int.parse(partes[0]),
+            int.parse(partes[1]),
+            int.parse(partes[2]),
+          );
           int diferencaDias = hoje.difference(ultimaData).inDays;
 
           if (diferencaDias == 1) {
@@ -93,7 +98,9 @@ class FirestoreService {
         correcaoLevelUp = true;
       }
       if (correcaoLevelUp) {
-        print("Corretor de Nível ativado! Usuário ajustado para o Nível $nivelAtual.");
+        print(
+          "Corretor de Nível ativado! Usuário ajustado para o Nível $nivelAtual.",
+        );
       }
 
       // --- VALIDAÇÃO DA BADGE DE 7 DIAS ---
@@ -114,14 +121,32 @@ class FirestoreService {
       }, SetOptions(merge: true));
 
       if (virouODia && userDoc.exists) {
-        QuerySnapshot meusDesafios = await userRef.collection('meus_desafios').get();
+        QuerySnapshot meusDesafios = await userRef
+            .collection('meus_desafios')
+            .get();
         for (var doc in meusDesafios.docs) {
-          Map<String, dynamic> dadosDesafio = doc.data() as Map<String, dynamic>;
+          Map<String, dynamic> dadosDesafio =
+              doc.data() as Map<String, dynamic>;
           if (dadosDesafio['status'] == 'coletado') {
             await doc.reference.delete();
           }
         }
         print("Dia virou! Desafios coletados foram limpos.");
+
+        // Dano automático diário ao boss do grupo (se houver)
+        try {
+          BossService bossService = BossService();
+          String grupoId = await bossService.getGrupoIdDoUsuario(uid);
+          if (grupoId.isNotEmpty) {
+            await bossService.danoSyncDiario(
+              grupoId: grupoId,
+              uid: uid,
+              minutosHoje: minutosFinaisRanking,
+            );
+          }
+        } catch (e) {
+          print("Boss sync diário: $e");
+        }
       }
     } catch (e) {
       print("Erro na sincronização diária: $e");
