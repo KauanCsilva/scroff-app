@@ -5,7 +5,6 @@ class BossService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Dano bônus fixo por completar um desafio
   static const int danoPorDesafioConcluido = 80;
 
   static const List<Map<String, dynamic>> catalogo = [
@@ -13,7 +12,7 @@ class BossService {
       'id': 'boss_notificacoes',
       'nome': 'Senhor das Notificações',
       'descricao':
-          'Ele alimenta sua compulsão de checar o celular a cada minuto.',
+      'Ele alimenta sua compulsão de checar o celular a cada minuto.',
       'emoji': '🔔',
       'hp_maximo': 1000,
       'recompensa_xp': 300,
@@ -76,9 +75,6 @@ class BossService {
     });
   }
 
-  // =========================================================
-  // DANO MANUAL — botão Atacar na tela do boss (1x por dia)
-  // =========================================================
   Future<Map<String, dynamic>> atacarBoss({
     required String grupoId,
     required int minutosHoje,
@@ -97,7 +93,6 @@ class BossService {
     if (boss == null || boss['ativo'] != true)
       return {'sucesso': false, 'motivo': 'sem_boss'};
 
-    // Trava diária
     String hoje = _hoje();
     Map<String, dynamic> ataquesDiarios = Map<String, dynamic>.from(
       boss['ataques_diarios'] ?? {},
@@ -123,9 +118,6 @@ class BossService {
     );
   }
 
-  // =========================================================
-  // DANO AUTOMÁTICO DIÁRIO — chamado pelo sync ao virar o dia
-  // =========================================================
   Future<Map<String, dynamic>> danoSyncDiario({
     required String grupoId,
     required String uid,
@@ -157,9 +149,6 @@ class BossService {
     );
   }
 
-  // =========================================================
-  // DANO BÔNUS POR DESAFIO — chamado ao coletar desafio
-  // =========================================================
   Future<Map<String, dynamic>> danoPorDesafio({
     required String grupoId,
     required String uid,
@@ -185,9 +174,6 @@ class BossService {
     );
   }
 
-  // =========================================================
-  // NÚCLEO: aplica dano, verifica derrota, distribui recompensas
-  // =========================================================
   Future<Map<String, dynamic>> _aplicarDano({
     required String grupoId,
     required String uid,
@@ -227,20 +213,17 @@ class BossService {
     };
   }
 
-  // =========================================================
-  // DISTRIBUIÇÃO PROPORCIONAL AO DANO CAUSADO
-  // =========================================================
   Future<void> _distribuirRecompensas(
-    Map<String, dynamic> boss,
-    List<dynamic> membros,
-    Map<String, dynamic> danoPorMembro,
-  ) async {
+      Map<String, dynamic> boss,
+      List<dynamic> membros,
+      Map<String, dynamic> danoPorMembro,
+      ) async {
     int xpTotal = boss['recompensa_xp'] ?? 200;
     int moedasTotal = boss['recompensa_moedas'] ?? 50;
 
     int danoTotalGrupo = danoPorMembro.values.fold(
       0,
-      (soma, dano) => soma + (dano as int),
+          (soma, dano) => soma + (dano as int),
     );
 
     WriteBatch batch = _db.batch();
@@ -250,7 +233,6 @@ class BossService {
       int moedasFinal;
 
       if (danoTotalGrupo == 0 || danoCausado == 0) {
-        // Não participou — consolação de 10%
         xpFinal = (xpTotal * 0.1).round();
         moedasFinal = (moedasTotal * 0.1).round();
       } else {
@@ -267,7 +249,6 @@ class BossService {
     await batch.commit();
   }
 
-  // Busca o grupoId do grupo ao qual o usuário pertence
   Future<String> getGrupoIdDoUsuario(String uid) async {
     QuerySnapshot snap = await _db
         .collection('grupos')

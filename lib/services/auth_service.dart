@@ -5,7 +5,6 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // 1. Criar conta com E-mail e Senha
   Future<User?> cadastrar(String email, String senha, String nome) async {
     try {
       UserCredential resultado = await _auth.createUserWithEmailAndPassword(
@@ -15,7 +14,6 @@ class AuthService {
 
       User? user = resultado.user;
 
-      // Cria o documento inicial do usuário no Firestore com todos os campos
       if (user != null) {
         await _db.collection('usuarios').doc(user.uid).set({
           'nome': nome.trim().isEmpty ? 'Usuário' : nome.trim(),
@@ -43,7 +41,6 @@ class AuthService {
     }
   }
 
-  // 2. Fazer Login
   Future<User?> login(String email, String senha) async {
     try {
       UserCredential resultado = await _auth.signInWithEmailAndPassword(
@@ -57,11 +54,9 @@ class AuthService {
     }
   }
 
-  // 3. Sair (Logout)
   Future<void> sair() async {
     await _auth.signOut();
   }
 
-  // 4. Verificar se o usuário já está logado
   Stream<User?> get usuarioLogado => _auth.authStateChanges();
 }

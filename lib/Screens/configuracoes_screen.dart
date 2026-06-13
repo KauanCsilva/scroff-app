@@ -19,12 +19,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   bool _carregando = true;
   bool _mostrarGraficos = true;
 
-  // =====================================================
-  // LISTA CURADA DE APPS PRODUTIVOS (por categoria)
-  // package name = ID real do Android para comparar com UsageStats
-  // =====================================================
   static const List<Map<String, dynamic>> _appsCurados = [
-    // TRABALHO
     {
       'categoria': 'Trabalho',
       'apps': [
@@ -66,7 +61,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
         {'id': 'com.github.android', 'nome': 'GitHub', 'icone': '🐙'},
       ],
     },
-    // ESTUDO
     {
       'categoria': 'Estudo',
       'apps': [
@@ -97,7 +91,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
         },
       ],
     },
-    // LEITURA
     {
       'categoria': 'Leitura',
       'apps': [
@@ -115,7 +108,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
         {'id': 'com.getpocket.android', 'nome': 'Pocket', 'icone': '🔖'},
       ],
     },
-    // SAÚDE & FOCO
     {
       'categoria': 'Saúde & Foco',
       'apps': [
@@ -208,7 +200,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
     });
   }
 
-  // Abre dialog para o usuário sugerir um app à equipe
   void _mostrarDialogSugestao() {
     final TextEditingController sugestaoCtrl = TextEditingController();
     showDialog(
@@ -251,10 +242,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
               await FirebaseFirestore.instance
                   .collection('sugestoes_apps')
                   .add({
-                    'app': sugestaoCtrl.text.trim(),
-                    'usuario_id': uid,
-                    'enviado_em': FieldValue.serverTimestamp(),
-                  });
+                'app': sugestaoCtrl.text.trim(),
+                'usuario_id': uid,
+                'enviado_em': FieldValue.serverTimestamp(),
+              });
 
               if (context.mounted) {
                 Navigator.pop(context);
@@ -282,24 +273,23 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
     }
   }
 
-  // Filtra: só apps da lista curada que estão instalados E batem com a busca
   List<Map<String, dynamic>> _categoriasFiltradas() {
     final termo = _buscaController.text.toLowerCase();
 
     return _appsCurados
         .map((cat) {
-          final appsFiltrados = (cat['apps'] as List).where((a) {
-            final instalado =
-                _packageNamesInstalados.isEmpty ||
+      final appsFiltrados = (cat['apps'] as List).where((a) {
+        final instalado =
+            _packageNamesInstalados.isEmpty ||
                 _packageNamesInstalados.contains(a['id']);
-            final bateBusca =
-                termo.isEmpty ||
+        final bateBusca =
+            termo.isEmpty ||
                 (a['nome'] as String).toLowerCase().contains(termo);
-            return instalado && bateBusca;
-          }).toList();
-          if (appsFiltrados.isEmpty) return null;
-          return {'categoria': cat['categoria'], 'apps': appsFiltrados};
-        })
+        return instalado && bateBusca;
+      }).toList();
+      if (appsFiltrados.isEmpty) return null;
+      return {'categoria': cat['categoria'], 'apps': appsFiltrados};
+    })
         .whereType<Map<String, dynamic>>()
         .toList();
   }
@@ -326,7 +316,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // SEÇÃO: PERFIL
                   const Text(
                     'Editar Perfil',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -341,7 +330,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                   ),
                   const SizedBox(height: 30),
 
-                  // SEÇÃO: PREFERÊNCIAS
                   const Text(
                     'Preferências',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -370,7 +358,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                   ),
                   const SizedBox(height: 30),
 
-                  // SEÇÃO: MODO TRABALHO
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -405,7 +392,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                             ),
                         ],
                       ),
-                      // BOTÃO SUGERIR APP
                       TextButton.icon(
                         onPressed: _mostrarDialogSugestao,
                         icon: const Icon(
@@ -429,7 +415,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // CAMPO DE BUSCA
                   TextField(
                     controller: _buscaController,
                     decoration: InputDecoration(
@@ -437,12 +422,12 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: _buscaController.text.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _buscaController.clear();
-                                FocusScope.of(context).unfocus();
-                              },
-                            )
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _buscaController.clear();
+                          FocusScope.of(context).unfocus();
+                        },
+                      )
                           : null,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -455,7 +440,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // LISTA POR CATEGORIA
                   if (_packageNamesInstalados.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 32),
@@ -566,7 +550,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                       );
                     }),
 
-                  // RODAPÉ COM LINK PARA SUGESTÃO
                   const SizedBox(height: 8),
                   Center(
                     child: TextButton.icon(
@@ -588,7 +571,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
             ),
           ),
 
-          // BOTÃO FIXO NO FUNDO
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             child: SizedBox(

@@ -29,7 +29,6 @@ class PermissionScreen extends StatelessWidget {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                // 👇 Transformamos em async/await para forçar a ponte com o Android
                 onPressed: () async {
                   try {
                     await UsageStats.grantUsagePermission();

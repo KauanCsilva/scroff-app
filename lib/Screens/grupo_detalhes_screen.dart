@@ -43,7 +43,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
     return '${horas}h ${minutos}m';
   }
 
-  // ================= SAIR OU EXCLUIR GRUPO =================
   Future<void> _gerenciarGrupo(String acao) async {
     String uid = _auth.currentUser?.uid ?? '';
     String groupId = widget.grupoData['id'] ?? '';
@@ -74,7 +73,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
     }
   }
 
-  // ================= CRIAR NOVO COMBINADO =================
   void _mostrarDialogNovoCombinado() {
     final tituloCtrl = TextEditingController();
     final descCtrl = TextEditingController();
@@ -156,14 +154,14 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                     .doc(widget.grupoData['id'])
                     .collection('combinados')
                     .add({
-                      'titulo': tituloCtrl.text,
-                      'descricao': descCtrl.text,
-                      'premio': premioCtrl.text,
-                      'data_fim': Timestamp.fromDate(dataFim),
-                      'status': 'ativo',
-                      'criador_id': uid,
-                      'criado_em': FieldValue.serverTimestamp(),
-                    });
+                  'titulo': tituloCtrl.text,
+                  'descricao': descCtrl.text,
+                  'premio': premioCtrl.text,
+                  'data_fim': Timestamp.fromDate(dataFim),
+                  'status': 'ativo',
+                  'criador_id': uid,
+                  'criado_em': FieldValue.serverTimestamp(),
+                });
                 if (context.mounted) Navigator.pop(context);
               },
               child: const Text(
@@ -177,7 +175,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
     );
   }
 
-  // ================= COROAR VENCEDOR =================
   Future<void> _finalizarApostaEEncontrarVencedor(String combinadoId) async {
     String groupId = widget.grupoData['id'];
     List<dynamic> membros = widget.grupoData['membros'] ?? [];
@@ -191,7 +188,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
           .map((doc) => doc.data() as Map<String, dynamic>)
           .toList();
       usuarios.sort(
-        (a, b) => (a['minutos_hoje'] ?? 0).compareTo(b['minutos_hoje'] ?? 0),
+            (a, b) => (a['minutos_hoje'] ?? 0).compareTo(b['minutos_hoje'] ?? 0),
       );
       String nomeVencedor = usuarios.isNotEmpty
           ? (usuarios.first['nome'] ?? 'Desconhecido')
@@ -236,7 +233,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
         .delete();
   }
 
-  // ================= ATACAR BOSS =================
   Future<void> _executarAtaque(String groupId, int minutosHoje) async {
     setState(() => _atacando = true);
     final resultado = await _bossService.atacarBoss(
@@ -383,79 +379,77 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // ===== ABA 1: RANKING =====
           membros.isEmpty
               ? const Center(child: Text('Nenhum membro neste grupo.'))
               : FutureBuilder<QuerySnapshot>(
-                  future: _db
-                      .collection('usuarios')
-                      .where(FieldPath.documentId, whereIn: membros)
-                      .get(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting)
-                      return const Center(child: CircularProgressIndicator());
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
-                      return const Center(
-                        child: Text('Erro ao carregar ranking.'),
-                      );
-                    var usuarios = snapshot.data!.docs
-                        .map((doc) => doc.data() as Map<String, dynamic>)
-                        .toList();
-                    usuarios.sort(
-                      (a, b) => (a['minutos_hoje'] ?? 0).compareTo(
-                        b['minutos_hoje'] ?? 0,
-                      ),
-                    );
-                    return ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: usuarios.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        var user = usuarios[index];
-                        int minutos = user['minutos_hoje'] ?? 0;
-                        String coroa = index == 0
-                            ? ' 👑'
-                            : index == 1
-                            ? ' 🥈'
-                            : index == 2
-                            ? ' 🥉'
-                            : '';
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: index == 0
-                                ? Colors.amber[100]
-                                : Colors.grey[100],
-                            child: Text(
-                              '${index + 1}º',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: index == 0
-                                    ? Colors.amber[900]
-                                    : Colors.black,
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            '${user['nome'] ?? 'Usuário'}$coroa',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          trailing: Text(
-                            _formatarTempo(minutos),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: index == 0
-                                  ? const Color(0xFF246815)
-                                  : Colors.black87,
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
+            future: _db
+                .collection('usuarios')
+                .where(FieldPath.documentId, whereIn: membros)
+                .get(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting)
+                return const Center(child: CircularProgressIndicator());
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
+                return const Center(
+                  child: Text('Erro ao carregar ranking.'),
+                );
+              var usuarios = snapshot.data!.docs
+                  .map((doc) => doc.data() as Map<String, dynamic>)
+                  .toList();
+              usuarios.sort(
+                    (a, b) => (a['minutos_hoje'] ?? 0).compareTo(
+                  b['minutos_hoje'] ?? 0,
                 ),
+              );
+              return ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: usuarios.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  var user = usuarios[index];
+                  int minutos = user['minutos_hoje'] ?? 0;
+                  String coroa = index == 0
+                      ? ' 👑'
+                      : index == 1
+                      ? ' 🥈'
+                      : index == 2
+                      ? ' 🥉'
+                      : '';
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: index == 0
+                          ? Colors.amber[100]
+                          : Colors.grey[100],
+                      child: Text(
+                        '${index + 1}º',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: index == 0
+                              ? Colors.amber[900]
+                              : Colors.black,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      '${user['nome'] ?? 'Usuário'}$coroa',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    trailing: Text(
+                      _formatarTempo(minutos),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: index == 0
+                            ? const Color(0xFF246815)
+                            : Colors.black87,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
 
-          // ===== ABA 2: COMBINADOS =====
           StreamBuilder<QuerySnapshot>(
             stream: _db
                 .collection('grupos')
@@ -585,8 +579,8 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                                     status == 'finalizado'
                                         ? 'Finalizado'
                                         : (expirou
-                                              ? 'Prazo Encerrado'
-                                              : '$diasRestantes dias restantes'),
+                                        ? 'Prazo Encerrado'
+                                        : '$diasRestantes dias restantes'),
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: status == 'finalizado'
@@ -654,14 +648,12 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
             },
           ),
 
-          // ===== ABA 3: BOSS =====
           _construirAbaBoss(groupId, uid, isDonoDoGrupo),
         ],
       ),
     );
   }
 
-  // ===== CONSTRUTOR DA ABA BOSS =====
   Widget _construirAbaBoss(String groupId, String uid, bool isDono) {
     return StreamBuilder<DocumentSnapshot>(
       stream: _bossService.bossStream(groupId),
@@ -671,7 +663,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
             child: CircularProgressIndicator(color: Color(0xFF246815)),
           );
         Map<String, dynamic> grupoData =
-            snapshot.data!.data() as Map<String, dynamic>;
+        snapshot.data!.data() as Map<String, dynamic>;
         Map<String, dynamic>? boss = grupoData['boss'] as Map<String, dynamic>?;
 
         return FutureBuilder<DocumentSnapshot>(
@@ -681,8 +673,8 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
             if (userSnap.hasData && userSnap.data!.exists) {
               minutosHoje =
                   (userSnap.data!.data()
-                      as Map<String, dynamic>)['minutos_hoje'] ??
-                  0;
+                  as Map<String, dynamic>)['minutos_hoje'] ??
+                      0;
             }
             if (boss == null || boss['ativo'] != true)
               return _telaInvocarBoss(groupId, isDono, boss);
@@ -694,10 +686,10 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
   }
 
   Widget _telaInvocarBoss(
-    String groupId,
-    bool isDono,
-    Map<String, dynamic>? bossAnterior,
-  ) {
+      String groupId,
+      bool isDono,
+      Map<String, dynamic>? bossAnterior,
+      ) {
     bool foiDerrotado = bossAnterior != null && bossAnterior['ativo'] == false;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -855,11 +847,11 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
   }
 
   Widget _telaBossAtivo(
-    String groupId,
-    String uid,
-    Map<String, dynamic> boss,
-    int minutosHoje,
-  ) {
+      String groupId,
+      String uid,
+      Map<String, dynamic> boss,
+      int minutosHoje,
+      ) {
     int hpAtual = boss['hp_atual'] ?? 0;
     int hpMaximo = boss['hp_maximo'] ?? 1;
     double hpPercent = hpAtual / hpMaximo;
@@ -877,7 +869,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
     );
     int danoTotal = danoPorMembro.values.fold(
       0,
-      (soma, d) => soma + (d as int),
+          (soma, d) => soma + (d as int),
     );
     int xpTotal = boss['recompensa_xp'] ?? 200;
     int moedasTotal = boss['recompensa_moedas'] ?? 50;
@@ -890,7 +882,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          // CARD DO BOSS
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(24),
@@ -951,7 +942,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                   ),
                 ),
 
-                // COMO CAUSAR DANO
                 const SizedBox(height: 20),
                 Container(
                   width: double.infinity,
@@ -1032,7 +1022,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                   ),
                 ),
 
-                // RECOMPENSAS
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1052,7 +1041,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
           ),
           const SizedBox(height: 20),
 
-          // BOTÃO DE ATAQUE MANUAL
           if (!jaAtacouHoje)
             SizedBox(
               width: double.infinity,
@@ -1071,26 +1059,26 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                 child: _atacando
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            '⚔️  ATACAR',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          Text(
-                            '-$danoPotencial de dano hoje',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      '⚔️  ATACAR',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
                       ),
+                    ),
+                    Text(
+                      '-$danoPotencial de dano hoje',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           else
@@ -1117,7 +1105,6 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
             ),
           const SizedBox(height: 24),
 
-          // PLACAR DE CONTRIBUIÇÃO COM RECOMPENSA ESTIMADA
           if (danoPorMembro.isNotEmpty) ...[
             const Align(
               alignment: Alignment.centerLeft,
@@ -1136,15 +1123,15 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
               future: _db
                   .collection('usuarios')
                   .where(
-                    FieldPath.documentId,
-                    whereIn: danoPorMembro.keys.toList(),
-                  )
+                FieldPath.documentId,
+                whereIn: danoPorMembro.keys.toList(),
+              )
                   .get(),
               builder: (context, snap) {
                 if (!snap.hasData) return const SizedBox();
                 var membrosSnap = snap.data!.docs;
                 membrosSnap.sort(
-                  (a, b) => (danoPorMembro[b.id] ?? 0).compareTo(
+                      (a, b) => (danoPorMembro[b.id] ?? 0).compareTo(
                     danoPorMembro[a.id] ?? 0,
                   ),
                 );
@@ -1162,7 +1149,7 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                         Divider(height: 1, color: Colors.grey.shade100),
                     itemBuilder: (context, i) {
                       var membro =
-                          membrosSnap[i].data() as Map<String, dynamic>;
+                      membrosSnap[i].data() as Map<String, dynamic>;
                       int dano = danoPorMembro[membrosSnap[i].id] ?? 0;
                       double proporcao = danoTotal > 0 ? dano / danoTotal : 0;
                       int xpEstimado = (xpTotal * proporcao).round();
@@ -1185,16 +1172,16 @@ class _GrupoDetalhesScreenState extends State<GrupoDetalhesScreen>
                         ),
                         subtitle: dano > 0
                             ? Text(
-                                'Se vencer: ~$xpEstimado XP  🪙 ~$moedasEstimadas',
-                                style: TextStyle(fontSize: 11, color: corBoss),
-                              )
+                          'Se vencer: ~$xpEstimado XP  🪙 ~$moedasEstimadas',
+                          style: TextStyle(fontSize: 11, color: corBoss),
+                        )
                             : const Text(
-                                'Sem contribuição ainda',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
-                                ),
-                              ),
+                          'Sem contribuição ainda',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
                         trailing: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,

@@ -283,7 +283,6 @@ class _LojaScreenState extends State<LojaScreen> {
           );
         }
 
-        // Apply grayscale filter only if it is locked AND it is not an avatar ('icone')
         if (bloqueado && tipoDaAba != 'icone') {
           visualDoItem = ColorFiltered(
             colorFilter: const ColorFilter.matrix(<double>[
@@ -324,14 +323,12 @@ class _LojaScreenState extends State<LojaScreen> {
                         alignment: Alignment.center,
                         children: [
                           Opacity(
-                            // Opacity stays at 1.0 for avatars to keep colors vibrant when locked
                             opacity: (bloqueado && tipoDaAba != 'icone') ? 0.4 : 1.0,
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Expanded(child: visualDoItem),
 
-                                // Hide the name text exclusively on the avatar tab
                                 if (tipoDaAba != 'icone') ...[
                                   const SizedBox(height: 8),
                                   Text(

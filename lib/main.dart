@@ -25,7 +25,6 @@ class ScroffApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFF246815),
         useMaterial3: true,
       ),
-      // O StreamBuilder é o primeiro filtro: Login
       home: StreamBuilder(
         stream: AuthService().usuarioLogado,
         builder: (context, snapshot) {
@@ -35,7 +34,7 @@ class ScroffApp extends StatelessWidget {
             );
           }
           if (snapshot.hasData) {
-            return const AppRoot(); // Se logado, vai pro segundo filtro (Permissão)
+            return const AppRoot();
           }
           return const LoginScreen();
         },
@@ -67,8 +66,6 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Checa ao voltar pro app SÓ se ainda não tem permissão
-  // Evita jogar na PermissionScreen ao desbloquear o celular
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && !_permissaoConcedida) {
@@ -88,8 +85,6 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     if (_permissaoConcedida) {
-      // ANTES: return const HomeScreen();
-      // AGORA: Abre o gerenciador de abas que por padrão inicia na HomeScreen
       return const DashboardPage();
     } else {
       return const PermissionScreen();

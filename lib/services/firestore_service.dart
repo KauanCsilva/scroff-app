@@ -7,7 +7,6 @@ class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // 1. SINCRO DIÁRIA + CORRETOR AUTOMÁTICO DE NÍVEL DE SEGURANÇA + SISTEMA DE OFENSIVAS
   Future<void> sincronizarDadosDiarios() async {
     try {
       String uid = _auth.currentUser?.uid ?? "";
@@ -23,7 +22,7 @@ class FirestoreService {
       int xpAtual = 0;
       int nivelAtual = 1;
       int moedasAtuais = 0;
-      int ofensivaAtual = 1; // Nova variável para a sequência de dias
+      int ofensivaAtual = 1;
       String ultimaSincronizacao = "";
       List<dynamic> whitelist = [];
       List<dynamic> badgesAtuais = [];
@@ -52,7 +51,6 @@ class FirestoreService {
         }
       }
 
-      // --- SISTEMA DE OFENSIVA (STREAK) E BADGE ---
       int novaOfensiva = 1;
       bool virouODia = false;
       String dataHojeStr = "${agora.year}-${agora.month}-${agora.day}";
@@ -68,27 +66,22 @@ class FirestoreService {
           int diferencaDias = hoje.difference(ultimaData).inDays;
 
           if (diferencaDias == 1) {
-            // Entrou no dia seguinte: Aumenta a ofensiva
             novaOfensiva = ofensivaAtual + 1;
             virouODia = true;
           } else if (diferencaDias == 0) {
-            // Já abriu hoje: Mantém a ofensiva
             novaOfensiva = ofensivaAtual;
           } else if (diferencaDias > 1) {
-            // Perdeu um dia ou mais: Zera a ofensiva
             novaOfensiva = 1;
             virouODia = true;
           }
         }
       } else {
-        // Primeira vez abrindo o app na vida
         virouODia = true;
       }
 
       int minutosFinaisRanking = minutosTotais - minutosDescontados;
       if (minutosFinaisRanking < 0) minutosFinaisRanking = 0;
 
-      // --- TRAVA DE SEGURANÇA ---
       int xpNecessario = nivelAtual * 1000;
       bool correcaoLevelUp = false;
       while (xpAtual >= xpNecessario) {
@@ -103,21 +96,19 @@ class FirestoreService {
         );
       }
 
-      // --- VALIDAÇÃO DA BADGE DE 7 DIAS ---
       List<String> novasBadges = [];
       if (novaOfensiva >= 7 && !badgesAtuais.contains('badge_7_dias')) {
         novasBadges.add('badge_7_dias');
       }
 
-      // Salva tudo no banco
       await userRef.set({
         'minutos_hoje': minutosFinaisRanking,
         'ultima_sincronizacao': dataHojeStr,
         'xp': xpAtual,
         'nivel': nivelAtual,
-        'ofensiva_dias': novaOfensiva, // Salva o contador de dias
+        'ofensiva_dias': novaOfensiva,
         if (novasBadges.isNotEmpty)
-          'badges': FieldValue.arrayUnion(novasBadges), // Destrava a badge
+          'badges': FieldValue.arrayUnion(novasBadges),
       }, SetOptions(merge: true));
 
       if (virouODia && userDoc.exists) {
@@ -126,14 +117,13 @@ class FirestoreService {
             .get();
         for (var doc in meusDesafios.docs) {
           Map<String, dynamic> dadosDesafio =
-              doc.data() as Map<String, dynamic>;
+          doc.data() as Map<String, dynamic>;
           if (dadosDesafio['status'] == 'coletado') {
             await doc.reference.delete();
           }
         }
         print("Dia virou! Desafios coletados foram limpos.");
 
-        // Dano automático diário ao boss do grupo (se houver)
         try {
           BossService bossService = BossService();
           String grupoId = await bossService.getGrupoIdDoUsuario(uid);
@@ -153,7 +143,6 @@ class FirestoreService {
     }
   }
 
-  // 2. FUNÇÃO MESTRE CENTRALIZADA DE RECOMPENSA E LEVEL UP
   Future<bool> adicionarRecompensa(int xpGanho, int moedasGanhas) async {
     try {
       String uid = _auth.currentUser?.uid ?? "";

@@ -8,7 +8,7 @@ class ItemLoja {
   final int lvl;
   final String? imagemPath;
   final IconData? icone;
-  final String? descricao; // NOVO: Instrucoes de como desbloquear
+  final String? descricao;
 
   ItemLoja({
     required this.id,
@@ -24,17 +24,13 @@ class ItemLoja {
 
 class LojaService {
   static final List<ItemLoja> catalogo = [
-    // ==========================================
-    // Categoria: AVATARES (tipo: 'icone')
-    //
-    // --- AVATARES INICIAIS ---
     ItemLoja(
       id: 'avatar_basicof',
       tipo: 'icone',
       nome: 'Mulher',
       preco: 0,
       lvl: 1,
-      imagemPath: 'assets/avatars/basic_f.png', // Aponta para a pasta do app
+      imagemPath: 'assets/avatars/basic_f.png',
     ),
     ItemLoja(
       id: 'avatar_basicom',
@@ -44,8 +40,6 @@ class LojaService {
       lvl: 1,
       imagemPath: 'assets/avatars/basic_m.jpg',
     ),
-
-    // --- AVATARES COMPRÁVEIS COM MOEDAS E NÍVEL ---
     ItemLoja(
       id: 'avatar_ninjaF',
       tipo: 'icone',
@@ -94,10 +88,6 @@ class LojaService {
       lvl: 2,
       imagemPath: 'assets/avatars/brasil_m.png',
     ),
-
-    // ==========================================
-    // Categoria: POWER-UPS (tipo: 'consumivel')
-    // ==========================================
     ItemLoja(
       id: 'cafe',
       tipo: 'consumivel',
@@ -122,10 +112,6 @@ class LojaService {
       lvl: 10,
       icone: Icons.confirmation_num,
     ),
-
-    // ==========================================
-    // Categoria: TÍTULOS (tipo: 'titulo')
-    // ==========================================
     ItemLoja(
       id: 't_iniciante',
       tipo: 'titulo',
@@ -158,17 +144,13 @@ class LojaService {
       lvl: 15,
       icone: Icons.precision_manufacturing,
     ),
-
-    // ==========================================
-    // Categoria: SELOS (tipo: 'selo')
-    // ==========================================
     ItemLoja(
       id: 'badge_primeiro_desafio',
       tipo: 'selo',
       nome: 'O inicio',
       preco: 0,
       lvl: 1,
-      imagemPath: 'assets/badges/primeiro_desafio.png', // Certifique-se de ter esta imagem
+      imagemPath: 'assets/badges/primeiro_desafio.png',
       icone: Icons.emoji_events,
       descricao: 'Conclua seu primeiro desafio.',
     ),

@@ -15,7 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _authService = AuthService();
 
   bool _carregando = false;
-  bool _modoLogin = true; // true = login, false = cadastro
+  bool _modoLogin = true;
 
   void _processarAcao() async {
     setState(() => _carregando = true);
@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Fundo alterado para branco
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -72,9 +72,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // NOVA IMAGEM SUBSTITUINDO O ÍCONE E O TEXTO
                 Image.asset(
-                  'assets/logo/scroff.png', // Certifique-se de que a imagem está nesta pasta
+                  'assets/logo/scroff.png',
                   height: 420,
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) => const Icon(
@@ -88,13 +87,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   _modoLogin ? "Bem-vindo de volta" : "Crie sua conta",
                   style: const TextStyle(
                     fontSize: 16,
-                    color: Colors.black54, // Cor adaptada para o fundo branco
+                    color: Colors.black54,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 40),
 
-                // CAMPO NOME (só no cadastro)
                 if (!_modoLogin) ...[
                   _campo(
                     controller: _nomeController,
@@ -104,7 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 14),
                 ],
 
-                // CAMPO EMAIL
                 _campo(
                   controller: _emailController,
                   label: "E-mail",
@@ -113,7 +110,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // CAMPO SENHA
                 _campo(
                   controller: _senhaController,
                   label: "Senha",
@@ -122,9 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                // BOTÃO PRINCIPAL
                 if (_carregando)
-                  const CircularProgressIndicator(color: Color(0xFF246815)) // Novo verde
+                  const CircularProgressIndicator(color: Color(0xFF246815))
                 else
                   SizedBox(
                     width: double.infinity,
@@ -132,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ElevatedButton(
                       onPressed: _processarAcao,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF246815), // Novo verde
+                        backgroundColor: const Color(0xFF246815),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -152,7 +147,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 16),
 
-                // ALTERNAR LOGIN / CADASTRO
                 TextButton(
                   onPressed: () {
                     setState(() {
@@ -165,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ? "Não tem conta? Cadastre-se"
                         : "Já tem conta? Entrar",
                     style: const TextStyle(
-                      color: Color(0xFF246815), // Novo verde
+                      color: Color(0xFF246815),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -189,21 +183,20 @@ class _LoginScreenState extends State<LoginScreen> {
       controller: controller,
       obscureText: senha,
       keyboardType: teclado,
-      // Cores do texto invertidas para aparecer no fundo branco
       style: const TextStyle(color: Colors.black87),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.black54),
         prefixIcon: Icon(icone, color: Colors.black38, size: 20),
         filled: true,
-        fillColor: Colors.grey[100], // Fundo da caixa levemente cinza
+        fillColor: Colors.grey[100],
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF246815), width: 1.5), // Novo verde
+          borderSide: const BorderSide(color: Color(0xFF246815), width: 1.5),
         ),
       ),
     );

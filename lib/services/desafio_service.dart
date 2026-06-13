@@ -33,28 +33,26 @@ class DesafioService {
           .collection('meus_desafios')
           .doc(desafioId)
           .set({
-            'status': 'aceito',
-            'data_inicio': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+        'status': 'aceito',
+        'data_inicio': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (e) {
       print("Erro ao aceitar: $e");
     }
   }
 
-  // LÓGICA DE VALIDAÇÃO COM LEVEL UP AUTOMÁTICO
   Future<bool> verificarEConcluir(
-    String desafioId,
-    String appAlvo,
-    int limiteMinutos,
-    int xpRecompensa,
-    int moedasRecompensa,
-    List<Map<String, dynamic>> topAppsUsuario,
-  ) async {
+      String desafioId,
+      String appAlvo,
+      int limiteMinutos,
+      int xpRecompensa,
+      int moedasRecompensa,
+      List<Map<String, dynamic>> topAppsUsuario,
+      ) async {
     try {
       String uid = _auth.currentUser?.uid ?? "";
       if (uid.isEmpty) return false;
 
-      // 1. Verifica se o desafio já foi coletado (proteção contra double-collect)
       DocumentReference desafioRef = _db
           .collection('usuarios')
           .doc(uid)
@@ -64,14 +62,13 @@ class DesafioService {
       DocumentSnapshot desafioDoc = await desafioRef.get();
       if (desafioDoc.exists) {
         Map<String, dynamic> dadosDesafio =
-            desafioDoc.data() as Map<String, dynamic>;
+        desafioDoc.data() as Map<String, dynamic>;
         if (dadosDesafio['status'] == 'coletado') {
           print("Desafio $desafioId já foi coletado. Ignorando.");
           return false;
         }
       }
 
-      // 2. Processa a checagem do tempo de tela do app alvo
       int minutosUsadosNoApp = 0;
       for (var app in topAppsUsuario) {
         if (app['nome'].toString().toLowerCase() == appAlvo.toLowerCase()) {
@@ -80,13 +77,10 @@ class DesafioService {
         }
       }
 
-      // Se estourou o limite acordado, falhou na missão
       if (minutosUsadosNoApp > limiteMinutos) return false;
 
-      // 3. Registra o sucesso na subcoleção do usuário
       await desafioRef.set({'status': 'coletado'}, SetOptions(merge: true));
 
-      // 4. Lê o perfil atual para calcular o XP acumulado e verificar LEVEL UP
       DocumentReference userRef = _db.collection('usuarios').doc(uid);
       DocumentSnapshot userDoc = await userRef.get();
 
@@ -105,7 +99,6 @@ class DesafioService {
       int novoNivel = nivelAtual;
       List<String> novasBadges = [];
 
-      // CORREÇÃO: while em vez de if — permite subir múltiplos níveis de uma vez
       int xpNecessario = novoNivel * 1000;
       while (novoXp >= xpNecessario) {
         novoXp -= xpNecessario;
@@ -114,7 +107,6 @@ class DesafioService {
         xpNecessario = novoNivel * 1000;
       }
 
-      // 5. Grava tudo de uma vez de forma consistente no banco de dados
       await userRef.set({
         'xp': novoXp,
         'moedas': moedasAtuais + moedasRecompensa,
@@ -123,7 +115,6 @@ class DesafioService {
           'badges': FieldValue.arrayUnion(novasBadges),
       }, SetOptions(merge: true));
 
-      // Aplica dano bônus ao boss do grupo (se houver boss ativo)
       try {
         BossService bossService = BossService();
         String grupoId = await bossService.getGrupoIdDoUsuario(uid);
@@ -131,7 +122,6 @@ class DesafioService {
           await bossService.danoPorDesafio(grupoId: grupoId, uid: uid);
         }
       } catch (e) {
-        // Não bloqueia a conclusão do desafio se o boss falhar
         print("Boss dano por desafio: $e");
       }
 

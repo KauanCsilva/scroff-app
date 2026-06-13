@@ -20,7 +20,7 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirestoreService _firestoreService = FirestoreService();
 
-  final int _tempoTotal = 1500; // 25 minutos
+  final int _tempoTotal = 1500;
   late int _segundosRestantes;
   Timer? _timer;
   bool _estaRodando = false;
@@ -157,7 +157,6 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
       moedasBase,
     );
 
-    // Se subiu de nível, dispara confete
     if (subiuDeNivel) {
       _confettiController.play();
       HapticFeedback.heavyImpact();
@@ -166,13 +165,11 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
       } catch (_) {}
     }
 
-    // SOM E VIBRAÇÃO DE SUCESSO
     try {
       await _audioPlayer.play(AssetSource('sounds/sucesso.mp3'));
     } catch (_) {}
     HapticFeedback.mediumImpact();
 
-    // ATIVA A ANIMAÇÃO DO XP FLUTUANDO
     setState(() {
       _textoXpFlutuante = "+$xpBase XP";
       _mostrarXpFlutuante = true;
@@ -248,8 +245,8 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
                     Text(
                       _estaRodando
                           ? (_cafeAtivadoNoFoco
-                                ? '☕ Foco Turbinado com Café!'
-                                : '🧘🏽‍♂️ Focando com Lo-Fi...')
+                          ? '☕ Foco Turbinado com Café!'
+                          : '🧘🏽‍♂️ Focando com Lo-Fi...')
                           : 'Pronto para começar?',
                       style: const TextStyle(
                         color: Colors.white60,
@@ -301,8 +298,8 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
                                   color: _estaRodando
                                       ? Colors.white12
                                       : (_cafeAtivadoNoFoco
-                                            ? Colors.amber
-                                            : const Color(0xFF1D9E75)),
+                                      ? Colors.amber
+                                      : const Color(0xFF1D9E75)),
                                 ),
                                 child: Icon(
                                   _estaRodando ? Icons.pause : Icons.play_arrow,
@@ -314,7 +311,6 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
                           ],
                         ),
 
-                        // ANIMAÇÃO DO XP FLUTUANTE ⬆️
                         if (_mostrarXpFlutuante)
                           AnimatedBuilder(
                             animation: _xpAnimController,
@@ -384,7 +380,6 @@ class _ModoFocoScreenState extends State<ModoFocoScreen>
                 ),
               ),
             ),
-            // CONFETE DE LEVEL UP
             Align(
               alignment: Alignment.topCenter,
               child: ConfettiWidget(
